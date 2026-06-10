@@ -233,6 +233,20 @@ fix_k3s_perms() {
 }
 
 # ------------------------------------------------------------------
+# Fix UFW — allow k3s API port 6443 so pods can reach API server
+# Tanpa ini CoreDNS kubernetes plugin ga bisa sync → DNS loop mati
+# ------------------------------------------------------------------
+fix_ufw_k3s() {
+    if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
+        if ! sudo ufw status 2>/dev/null | grep -q "6443"; then
+            log "Opening UFW port 6443 for k3s API server..."
+            sudo ufw allow 6443/tcp
+            log "UFW: 6443/tcp opened"
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------
 # Fix kubectl wrapper — deteksi & perbaiki recursive wrapper di ~/.local/bin/kubectl
 # ------------------------------------------------------------------
 fix_kubectl_wrapper() {
@@ -377,6 +391,7 @@ main() {
     detect_os
     install_base
     fix_k3s_perms
+    fix_ufw_k3s
     install_uv
     fix_kubectl_wrapper
     install_ansible
