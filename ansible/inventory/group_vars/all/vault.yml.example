@@ -1,22 +1,13 @@
 # ============================================================
-# Vault template — encrypt dengan ansible-vault
+# Vault template — semua secrets
 #
+# Setup:
 #   ansible-vault encrypt_string 'tskey-auth-xxxxx' --name 'vault_tailscale_authkey'
+#   ansible-vault encrypt_string 'eyJhIjo...' --name 'vault_cf_tunnel_token'
+#   ansible-vault encrypt_string 'my-secret-k3s-token' --name 'vault_k3s_token'
 #
 # ============================================================
+
 vault_tailscale_authkey: "REPLACE_WITH_ENCRYPTED_STRING"
 vault_cf_tunnel_token: "REPLACE_WITH_ENCRYPTED_STRING"
-
-# Cloudflare Tunnel (config file mode)
-# vault_cf_credentials_json: "REPLACE_WITH_ENCRYPTED_JSON"
-
-# PostgreSQL creds
-vault_pg_superuser_password: "postgres_super_secret_2026"
-vault_pg_app_password: "appuser_secret_2026"
-
-# MySQL creds
-vault_mysql_root_password: "root_secret_2026"
-vault_mysql_app_password: "appuser_secret_2026"
-
-# Grafana
-vault_grafana_admin_password: "admin_secret_2026"
+vault_k3s_token: "REPLACE_WITH_ENCRYPTED_STRING"

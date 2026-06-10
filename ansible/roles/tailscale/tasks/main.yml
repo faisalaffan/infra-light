@@ -1,0 +1,54 @@
+---
+# Role: tailscale — Install & join Tailscale mesh
+
+- name: Detect OS codename
+  shell: . /etc/os-release && echo $VERSION_CODENAME
+  register: os_codename
+  changed_when: false
+
+- name: Add Tailscale GPG key
+  shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/{{ os_codename.stdout }}.noarmor.gpg \
+      | tee /usr/share/keyrings/tailscale-archive-keyring.gpg > /dev/null
+  args:
+    creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
+
+- name: Add Tailscale repository
+  shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/{{ os_codename.stdout }}.tailscale-keyring.list \
+      | tee /etc/apt/sources.list.d/tailscale.list
+  args:
+    creates: /etc/apt/sources.list.d/tailscale.list
+
+- name: Install Tailscale
+  apt:
+    name: tailscale
+    update_cache: true
+    state: latest
+
+- name: Enable tailscaled
+  systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Join Tailscale network
+  command: >
+    tailscale up
+    --authkey={{ vault_tailscale_authkey }}
+    --hostname={{ inventory_hostname }}
+    {{ tailscale_args | default('--accept-routes') }}
+  register: ts_result
+  changed_when: "'already' not in ts_result.stderr"
+
+- name: Get Tailscale IP
+  command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+
+- name: Set tailscale_ipv4 fact
+  set_fact:
+    tailscale_ipv4: "{{ tailscale_ip.stdout | trim }}"
+
+- debug:
+    msg: "✅ {{ inventory_hostname }} — Tailscale IP: {{ tailscale_ipv4 }}"

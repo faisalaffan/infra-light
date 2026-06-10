@@ -3,12 +3,8 @@
 # ============================================================
 
 ansible_python_interpreter: /usr/bin/python3
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
 
-# Tailscale (authkey di vault.yml)
+# Tailscale
 tailscale_version: stable
 tailscale_args: "--accept-routes"
-
-# Repo infra
-infra_repo: git@github.com:faisalaffan/infra-light.git
-infra_dir: /opt/infra-light
-infra_branch: dev

@@ -1,0 +1,15 @@
+---
+# K3s — Full cluster setup (server + agents)
+# Requires: Tailscale harus sudah running
+
+- name: K3s Control Plane
+  hosts: k3s_server
+  become: true
+  roles:
+    - k3s_server
+
+- name: K3s Workers
+  hosts: k3s_agent
+  become: true
+  roles:
+    - k3s_agent

@@ -1,4 +1,6 @@
 *.retry
-inventory/group_vars/all/vault.yml
+vault.yml
+!vault.yml.example
 __pycache__/
 *.pyc
+/tmp/

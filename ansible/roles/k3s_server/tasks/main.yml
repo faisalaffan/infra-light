@@ -1,0 +1,62 @@
+---
+# Role: k3s_server — K3s control plane node
+# Requires: tailscale role applied first (tailscale_ipv4 must be set)
+
+- name: Install K3s server
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - server \
+      --token={{ vault_k3s_token }} \
+      --node-ip={{ tailscale_ipv4 }} \
+      --advertise-address={{ tailscale_ipv4 }} \
+      --tls-san={{ tailscale_ipv4 }} \
+      --tls-san={{ inventory_hostname }} \
+      --flannel-iface=tailscale0 \
+      --disable=traefik \
+      --disable=servicelb
+  args:
+    creates: /usr/local/bin/k3s
+  register: k3s_install
+  changed_when: k3s_install.rc == 0
+
+- name: Wait for K3s to be ready
+  wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 60
+
+- name: Wait for node ready
+  command: /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: node_ready
+  until: node_ready.stdout == "True"
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Get K3s node token
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_node_token
+
+- name: Set node token fact for agents
+  set_fact:
+    k3s_token: "{{ k3s_node_token.content | b64decode | trim }}"
+
+- name: Fetch kubeconfig to control machine
+  fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ lookup('env', 'HOME') }}/.kube/k3s-config"
+    flat: true
+
+- name: Fix kubeconfig server address
+  delegate_to: localhost
+  become: false
+  replace:
+    path: "{{ lookup('env', 'HOME') }}/.kube/k3s-config"
+    regexp: 'https://127.0.0.1:6443'
+    replace: "https://{{ tailscale_ipv4 }}:6443"
+
+- debug:
+    msg: |
+      ✅ K3s server installed on {{ inventory_hostname }}
+         Tailscale IP: {{ tailscale_ipv4 }}
+         Kubeconfig:   ~/.kube/k3s-config
+         K3s token:    {{ k3s_token | truncate(20, True, '...') }}

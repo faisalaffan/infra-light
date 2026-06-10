@@ -1,43 +1,48 @@
-.PHONY: ping bootstrap tailscale cloudflared docker infra vault-encrypt vault-edit lint
+.PHONY: ping site tailscale k3s cloudflared encrypt-ts encrypt-cf encrypt-k3s vault-edit lint clean
 
-# Test connection ke semua node
+# Test connection
 ping:
 	ansible all -i inventory/hosts.yml -m ping
 
-# Full bootstrap dari 0
-bootstrap:
-	ansible-playbook -i inventory/hosts.yml playbooks/bootstrap.yml --ask-vault-pass
+# ── Full Bootstrap ────────────────────────────────────────────
+site:
+	ansible-playbook site.yml -i inventory/hosts.yml --ask-vault-pass
 
-# Hanya Tailscale
+# ── Individual Steps ──────────────────────────────────────────
 tailscale:
-	ansible-playbook -i inventory/hosts.yml playbooks/tailscale.yml --ask-vault-pass
+	ansible-playbook playbooks/tailscale.yml -i inventory/hosts.yml --ask-vault-pass
 
-# Hanya Cloudflare Tunnel
+k3s:
+	ansible-playbook playbooks/k3s.yml -i inventory/hosts.yml --ask-vault-pass
+
 cloudflared:
-	ansible-playbook -i inventory/hosts.yml playbooks/cloudflared.yml --ask-vault-pass
+	ansible-playbook playbooks/cloudflared.yml -i inventory/hosts.yml --ask-vault-pass
 
-# Hanya Docker
-docker:
-	ansible-playbook -i inventory/hosts.yml playbooks/docker.yml
-
-# Hanya deploy infra services
-infra:
-	ansible-playbook -i inventory/hosts.yml playbooks/infra.yml --ask-vault-pass
-
-# Encrypt Tailscale authkey
-vault-encrypt-ts:
+# ── Vault Encryption ──────────────────────────────────────────
+encrypt-ts:
 	@read -p "Tailscale authkey: " key; \
 	ansible-vault encrypt_string "$$key" --name 'vault_tailscale_authkey'
 
-# Encrypt Cloudflare tunnel token
-vault-encrypt-cf:
-	@read -p "Cloudflare tunnel token: " token; \
+encrypt-cf:
+	@read -p "CF tunnel token: " token; \
 	ansible-vault encrypt_string "$$token" --name 'vault_cf_tunnel_token'
 
-# Edit vault file
+encrypt-k3s:
+	@read -p "K3s token: " token; \
+	ansible-vault encrypt_string "$$token" --name 'vault_k3s_token'
+	@echo ""
+	@echo "Jalankan:  ansible-vault edit inventory/group_vars/all/vault.yml"
+	@echo "Lalu paste encrypted string sebagai vault_k3s_token"
+
+# ── Maintenance ───────────────────────────────────────────────
 vault-edit:
 	ansible-vault edit inventory/group_vars/all/vault.yml
 
-# Lint playbooks
+vault-encrypt-file:
+	ansible-vault encrypt inventory/group_vars/all/vault.yml
+
 lint:
-	ansible-lint playbooks/*.yml 2>/dev/null || echo "ansible-lint not installed"
+	ansible-lint site.yml playbooks/*.yml 2>/dev/null || echo "ansible-lint not installed, run: pip install ansible-lint"
+
+clean:
+	rm -rf /tmp/ansible_cache *.retry
