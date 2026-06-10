@@ -295,7 +295,7 @@ deploy_kustomize() {
     envsubst < "$SCRIPT_DIR/kustomize/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
 
     # Default derivatif
-    export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-it-helpdesk.local}}"
+    export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
 
     # Wait for CoreDNS
     log "Waiting for CoreDNS..."
@@ -473,7 +473,7 @@ print_summary() {
     echo "  First-party: Kustomize  |  Third-party: HelmChart"
     echo "============================================"
     echo ""
-    echo "  Domain:      ${DOMAIN:-it-helpdesk.local}"
+    echo "  Domain:      ${DOMAIN:-faisalaffan.com}"
     echo "  Kustomize:   $KUSTOMIZE_DIR/infra"
     echo "  HelmCharts:  $HELMCHART_DIR"
     echo ""
