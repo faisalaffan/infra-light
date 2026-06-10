@@ -213,9 +213,15 @@ bootstrap_k3s() {
         return
     fi
 
+    # Become password untuk ansible (k3s install butuh root)
+    local ansible_become=""
+    if [ -n "${SUDO_PASS:-}" ]; then
+        ansible_become="-e ansible_become_password=$SUDO_PASS"
+    fi
+
     log "Bootstrapping Tailscale + K3s (OS-level)..."
-    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" || true
-    ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" || warn "K3s may already be installed"
+    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || true
+    ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
 
     fix_kubeconfig
     fix_k3s_perms
@@ -507,6 +513,19 @@ main() {
     echo "  Ubuntu 22.04+ / macOS"
     echo "============================================"
     echo ""
+
+    # Cache sudo password once (needed for ansible become + apt installs)
+    if ! sudo -n true 2>/dev/null; then
+        read -sp "[sudo] password for $USER: " SUDO_PASS
+        echo
+        # Validate immediately
+        if echo "$SUDO_PASS" | sudo -S true 2>/dev/null; then
+            export SUDO_PASS
+            log "Sudo access confirmed"
+        else
+            warn "Wrong sudo password — some steps may fail"
+        fi
+    fi
 
     detect_os
     install_base
