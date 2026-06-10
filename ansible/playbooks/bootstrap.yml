@@ -3,23 +3,23 @@
 #
 # Usage:
 #   1. Isi inventory/hosts.yml dengan IP node
-#   2. Buat vault: ansible-vault encrypt_string 'tskey-auth-xxx' --name 'vault_tailscale_authkey'
+#   2. Buat vault:
+#      ansible-vault encrypt_string 'tskey-auth-xxx' --name 'vault_tailscale_authkey'
+#      ansible-vault encrypt_string 'eyJhIjo...' --name 'vault_cf_tunnel_token'
 #   3. Jalankan:
 #      ansible-playbook -i inventory/hosts.yml playbooks/bootstrap.yml --ask-vault-pass
 #
-# Flow: Tailscale → Docker → Clone repo → Start services
+# Flow: Tailscale → Cloudflare Tunnel → Docker → Clone repo → Start services
 # ============================================================
-- name: Full Bootstrap — Tailscale + Docker + Infra
-  hosts: all
-  become: true
-  gather_facts: true
 
-  tasks:
-    - name: Import Tailscale playbook
-      ansible.builtin.import_playbook: playbooks/tailscale.yml
+- name: 1/4 — Setup Tailscale Mesh
+  import_playbook: tailscale.yml
 
-    - name: Import Docker playbook
-      ansible.builtin.import_playbook: playbooks/docker.yml
+- name: 2/4 — Setup Cloudflare Tunnel
+  import_playbook: cloudflared.yml
 
-    - name: Import Infra playbook
-      ansible.builtin.import_playbook: playbooks/infra.yml
+- name: 3/4 — Install Docker
+  import_playbook: docker.yml
+
+- name: 4/4 — Deploy Infrastructure Services
+  import_playbook: infra.yml

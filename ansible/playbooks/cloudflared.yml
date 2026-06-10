@@ -1,0 +1,109 @@
+# ============================================================
+# Cloudflare Tunnel — cloudflared, expose services ke internet
+#
+# Dua mode:
+#   1. Token (default) — cloudflared service install <token>
+#   2. Config file — ingress rules via YAML, full IaC
+#   Set `cf_mode: config` di inventory untuk mode config file
+# ============================================================
+- name: Setup Cloudflare Tunnel
+  hosts: tunnel_nodes
+  become: true
+  vars:
+    cf_tunnel_token: "{{ vault_cf_tunnel_token }}"
+    cf_mode: "{{ cloudflared_mode | default('token') }}"
+
+  tasks:
+    - name: Detect OS codename
+      shell: . /etc/os-release && echo $VERSION_CODENAME
+      register: os_codename
+      changed_when: false
+
+    - name: Add Cloudflare GPG key
+      shell: |
+        curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+          | tee /usr/share/keyrings/cloudflare-main.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/cloudflare-main.gpg
+
+    - name: Add Cloudflare repository
+      shell: |
+        echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] \
+          https://pkg.cloudflare.com/cloudflared {{ os_codename.stdout }} main" \
+          | tee /etc/apt/sources.list.d/cloudflared.list
+      args:
+        creates: /etc/apt/sources.list.d/cloudflared.list
+
+    - name: Install cloudflared
+      apt:
+        name: cloudflared
+        update_cache: true
+        state: latest
+
+    # ============================================================
+    # Mode: Token (simple)
+    # ============================================================
+    - name: Install tunnel via token
+      when: cf_mode == 'token'
+      block:
+        - name: Install cloudflared as systemd service
+          command: >
+            cloudflared service install {{ cf_tunnel_token }}
+          args:
+            creates: /etc/systemd/system/cloudflared.service
+          register: cf_install
+          failed_when:
+            - cf_install.rc != 0
+            - "'already' not in cf_install.stderr"
+
+        - name: Enable & start cloudflared
+          systemd:
+            name: cloudflared
+            enabled: true
+            state: started
+
+    # ============================================================
+    # Mode: Config file (IaC, multi-service ingress)
+    # ============================================================
+    - name: Install tunnel via config file
+      when: cf_mode == 'config'
+      block:
+        - name: Create cloudflared config directory
+          file:
+            path: /etc/cloudflared
+            state: directory
+            mode: '0755'
+
+        - name: Deploy tunnel credentials
+          copy:
+            content: "{{ vault_cf_credentials_json }}"
+            dest: "/etc/cloudflared/{{ cf_tunnel_id }}.json"
+            mode: '0600'
+
+        - name: Deploy tunnel config
+          copy:
+            dest: /etc/cloudflared/config.yml
+            content: |
+              tunnel: {{ cf_tunnel_id }}
+              credentials-file: /etc/cloudflared/{{ cf_tunnel_id }}.json
+              ingress:
+                {% for rule in cf_ingress_rules %}
+                - hostname: {{ rule.hostname }}
+                  service: {{ rule.service }}
+                {% endfor %}
+                - service: http_status:404
+            mode: '0644'
+
+        - name: Install cloudflared as systemd service (config mode)
+          command: cloudflared service install
+          args:
+            creates: /etc/systemd/system/cloudflared.service
+
+        - name: Enable & start cloudflared
+          systemd:
+            name: cloudflared
+            enabled: true
+            state: started
+
+    - debug:
+        msg: "✅ Cloudflare Tunnel installed on {{ inventory_hostname }} (mode: {{ cf_mode }})"

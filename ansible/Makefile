@@ -1,4 +1,4 @@
-.PHONY: ping bootstrap tailscale docker infra vault-encrypt vault-edit lint
+.PHONY: ping bootstrap tailscale cloudflared docker infra vault-encrypt vault-edit lint
 
 # Test connection ke semua node
 ping:
@@ -12,6 +12,10 @@ bootstrap:
 tailscale:
 	ansible-playbook -i inventory/hosts.yml playbooks/tailscale.yml --ask-vault-pass
 
+# Hanya Cloudflare Tunnel
+cloudflared:
+	ansible-playbook -i inventory/hosts.yml playbooks/cloudflared.yml --ask-vault-pass
+
 # Hanya Docker
 docker:
 	ansible-playbook -i inventory/hosts.yml playbooks/docker.yml
@@ -20,10 +24,15 @@ docker:
 infra:
 	ansible-playbook -i inventory/hosts.yml playbooks/infra.yml --ask-vault-pass
 
-# Encrypt string untuk vault
-vault-encrypt:
-	@read -p "Authkey: " key; \
+# Encrypt Tailscale authkey
+vault-encrypt-ts:
+	@read -p "Tailscale authkey: " key; \
 	ansible-vault encrypt_string "$$key" --name 'vault_tailscale_authkey'
+
+# Encrypt Cloudflare tunnel token
+vault-encrypt-cf:
+	@read -p "Cloudflare tunnel token: " token; \
+	ansible-vault encrypt_string "$$token" --name 'vault_cf_tunnel_token'
 
 # Edit vault file
 vault-edit:

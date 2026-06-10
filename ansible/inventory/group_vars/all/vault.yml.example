@@ -5,6 +5,10 @@
 #
 # ============================================================
 vault_tailscale_authkey: "REPLACE_WITH_ENCRYPTED_STRING"
+vault_cf_tunnel_token: "REPLACE_WITH_ENCRYPTED_STRING"
+
+# Cloudflare Tunnel (config file mode)
+# vault_cf_credentials_json: "REPLACE_WITH_ENCRYPTED_JSON"
 
 # PostgreSQL creds
 vault_pg_superuser_password: "postgres_super_secret_2026"
