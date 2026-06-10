@@ -1,0 +1,18 @@
+# ============================================================
+# Vault template — encrypt dengan ansible-vault
+#
+#   ansible-vault encrypt_string 'tskey-auth-xxxxx' --name 'vault_tailscale_authkey'
+#
+# ============================================================
+vault_tailscale_authkey: "REPLACE_WITH_ENCRYPTED_STRING"
+
+# PostgreSQL creds
+vault_pg_superuser_password: "postgres_super_secret_2026"
+vault_pg_app_password: "appuser_secret_2026"
+
+# MySQL creds
+vault_mysql_root_password: "root_secret_2026"
+vault_mysql_app_password: "appuser_secret_2026"
+
+# Grafana
+vault_grafana_admin_password: "admin_secret_2026"

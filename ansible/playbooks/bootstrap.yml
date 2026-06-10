@@ -1,0 +1,25 @@
+# ============================================================
+# Bootstrap — Full node setup dari 0
+#
+# Usage:
+#   1. Isi inventory/hosts.yml dengan IP node
+#   2. Buat vault: ansible-vault encrypt_string 'tskey-auth-xxx' --name 'vault_tailscale_authkey'
+#   3. Jalankan:
+#      ansible-playbook -i inventory/hosts.yml playbooks/bootstrap.yml --ask-vault-pass
+#
+# Flow: Tailscale → Docker → Clone repo → Start services
+# ============================================================
+- name: Full Bootstrap — Tailscale + Docker + Infra
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Import Tailscale playbook
+      ansible.builtin.import_playbook: playbooks/tailscale.yml
+
+    - name: Import Docker playbook
+      ansible.builtin.import_playbook: playbooks/docker.yml
+
+    - name: Import Infra playbook
+      ansible.builtin.import_playbook: playbooks/infra.yml

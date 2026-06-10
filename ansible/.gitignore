@@ -1,0 +1,4 @@
+*.retry
+inventory/group_vars/all/vault.yml
+__pycache__/
+*.pyc
