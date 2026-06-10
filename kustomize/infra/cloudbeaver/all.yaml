@@ -41,6 +41,9 @@ spec:
       containers:
         - name: cloudbeaver
           image: dbeaver/cloudbeaver:latest
+          env:
+            - name: CLOUDBEAVER_FORCE_HTTPS
+              value: "false"
           ports:
             - containerPort: 8978
           volumeMounts:
