@@ -26,3 +26,13 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+    - host: ${CLOUDBEAVER_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cloudbeaver
+                port:
+                  number: 8978
