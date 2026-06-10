@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ============================================================
-# DevOps Infrastructure Setup — Ubuntu 22.04+ / macOS
-# One script: Docker, PostgreSQL, MySQL, MCP toolbox, SSH
+# DevOps Infrastructure Setup — Full Ansible Bootstrap
+# Ubuntu 22.04+ / Debian / macOS
 # ============================================================
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -12,19 +12,21 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 # ------------------------------------------------------------------
-# Config — load from DEVOPS/.env if exists, else use defaults
+# Config — load from DEVOPS/.env
 # ------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/.env" ]; then
     set -a; source "$SCRIPT_DIR/.env"; set +a
+    log "Loaded .env — DOMAIN=${DOMAIN:-unset}"
+else
+    warn "No .env found, using defaults"
 fi
 
-GITHUB_REPO="${GIT_REPO:-git@github.com:faisalaffan/infra-light.git}"
-REPO_DIR="${INFRA_DIR:-$HOME/infra-light}"
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/id_rsa}"
 GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
+ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
 
 # ------------------------------------------------------------------
 # OS Detection
@@ -50,37 +52,7 @@ detect_os() {
 }
 
 # ------------------------------------------------------------------
-# Docker + Compose
-# ------------------------------------------------------------------
-install_docker() {
-    if command -v docker &>/dev/null; then
-        log "Docker already installed: $(docker --version)"
-    else
-        log "Installing Docker..."
-        if [ "$OS" = "linux" ]; then
-            curl -fsSL https://get.docker.com | sh
-            sudo usermod -aG docker "$USER"
-            sudo systemctl enable docker
-            sudo systemctl start docker
-        elif [ "$OS" = "macos" ]; then
-            if command -v brew &>/dev/null; then
-                brew install --cask docker
-            else
-                warn "Install Docker Desktop manually: https://docs.docker.com/desktop/setup/mac/"
-            fi
-        fi
-        log "Docker installed"
-    fi
-
-    if docker compose version &>/dev/null; then
-        log "Docker Compose available"
-    else
-        warn "Docker Compose not found — install Docker Desktop or docker-compose-plugin"
-    fi
-}
-
-# ------------------------------------------------------------------
-# Base packages
+# Base packages (curl, git, gnupg)
 # ------------------------------------------------------------------
 install_base() {
     log "Installing base packages..."
@@ -104,15 +76,16 @@ setup_ssh() {
     mkdir -p "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
 
+    local key_existed=false
     if [ -f "$SSH_KEY" ]; then
         log "SSH key exists: $SSH_KEY"
+        key_existed=true
     else
         log "Generating SSH key (RSA 4096)..."
         ssh-keygen -t rsa -b 4096 -C "$GIT_EMAIL" -f "$SSH_KEY" -N ""
         log "SSH key generated"
     fi
 
-    # SSH config for GitHub
     if ! grep -q "Host github.com" "$HOME/.ssh/config" 2>/dev/null; then
         cat >> "$HOME/.ssh/config" << 'SSHEOF'
 
@@ -126,18 +99,14 @@ SSHEOF
         log "SSH config updated"
     fi
 
-    # Start ssh-agent, add key
-    if [ "$OS" = "macos" ]; then
-        ssh-add --apple-use-keychain "$SSH_KEY" 2>/dev/null || ssh-add "$SSH_KEY" 2>/dev/null || true
-    else
-        ssh-add "$SSH_KEY" 2>/dev/null || true
-    fi
+    ssh-add "$SSH_KEY" 2>/dev/null || true
 
-    log "SSH public key:"
-    echo "---"
-    cat "${SSH_KEY}.pub"
-    echo "---"
-    warn "Add this key to: https://github.com/settings/keys"
+    if [ "$key_existed" = false ]; then
+        log "SSH public key (add to GitHub):"
+        echo "---"
+        cat "${SSH_KEY}.pub"
+        echo "---"
+    fi
 }
 
 # ------------------------------------------------------------------
@@ -147,30 +116,176 @@ clone_repo() {
     if [ -d "$REPO_DIR" ]; then
         log "Repo exists, pulling latest..."
         cd "$REPO_DIR"
-        git pull origin dev
+        git pull origin "${GIT_BRANCH:-dev}" 2>/dev/null || log "Pull skipped (dirty tree?)"
     else
         log "Cloning $GITHUB_REPO..."
         GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone "$GITHUB_REPO" "$REPO_DIR"
         cd "$REPO_DIR"
-        git checkout dev
+        git checkout "${GIT_BRANCH:-dev}"
     fi
     log "Repo ready: $REPO_DIR"
 }
 
 # ------------------------------------------------------------------
-# uv / uvx (for MCP servers: serena, MiniMax)
+# uv / uvx (for ansible + MCP servers)
 # ------------------------------------------------------------------
 install_uv() {
     if command -v uvx &>/dev/null; then
-        log "uvx already installed: $(uvx --version 2>&1 || true)"
+        log "uvx already installed"
     else
         log "Installing uv/uvx..."
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
-        log "uvx installed: $(uvx --version 2>&1 || true)"
     fi
-    # Ensure in PATH for current session
     export PATH="$HOME/.local/bin:$PATH"
+}
+
+# ------------------------------------------------------------------
+# Ansible via uv
+# ------------------------------------------------------------------
+install_ansible() {
+    if command -v ansible-playbook &>/dev/null; then
+        log "Ansible already installed: $(ansible --version 2>&1 | head -1)"
+    else
+        log "Installing Ansible via uv..."
+        uv tool install ansible
+        export PATH="$HOME/.local/share/uv/tools/ansible/bin:$HOME/.local/bin:$PATH"
+        log "Ansible installed: $(ansible --version 2>&1 | head -1)"
+    fi
+    # Ensure ansible in PATH
+    export PATH="$HOME/.local/share/uv/tools/ansible/bin:$HOME/.local/bin:$PATH"
+}
+
+# ------------------------------------------------------------------
+# Vault — generate from .env if not exists or is encrypted
+# ------------------------------------------------------------------
+setup_vault() {
+    local vault_file="$ANSIBLE_DIR/inventory/group_vars/all/vault.yml"
+
+    if [ ! -f "$vault_file" ]; then
+        warn "vault.yml not found, generating from .env..."
+    elif head -1 "$vault_file" | grep -q "ANSIBLE_VAULT"; then
+        warn "vault.yml is ENCRYPTED. Overwriting with plaintext from .env..."
+    else
+        log "vault.yml exists (plaintext)"
+        return
+    fi
+
+    # Generate vault.yml from .env values
+    cat > "$vault_file" << VAULTEOF
+# ============================================================
+# Vault — generated from DEVOPS/.env by setup.sh
+# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+# ============================================================
+
+vault_tailscale_authkey: "${TAILSCALE_AUTHKEY:-skip-tailscale-local}"
+vault_cf_tunnel_token: "${CF_TUNNEL_TOKEN:-}"
+vault_k3s_token: "${K3S_TOKEN:-k3s-local-dev-token-2026}"
+vault_pg_superuser_password: "${PG_SUPERUSER_PASSWORD:-postgres_super_secret_2026}"
+vault_pg_app_password: "${PG_APP_PASSWORD:-appuser_secret_2026}"
+vault_mysql_root_password: "${MYSQL_ROOT_PASSWORD:-root_secret_2026}"
+vault_mysql_app_password: "${MYSQL_PASSWORD:-appuser_secret_2026}"
+vault_grafana_admin_password: "${GRAFANA_ADMIN_PASSWORD:-admin_secret_2026}"
+VAULTEOF
+    log "vault.yml generated"
+}
+
+# ------------------------------------------------------------------
+# Run Ansible playbooks
+# ------------------------------------------------------------------
+run_ansible() {
+    log "Running Ansible bootstrap..."
+    cd "$ANSIBLE_DIR"
+
+    # Get Tailscale IP (skip tailscale role if already running)
+    local tailscale_ip=""
+    if command -v tailscale &>/dev/null && tailscale status &>/dev/null 2>&1; then
+        tailscale_ip=$(tailscale ip -4 2>/dev/null || echo "")
+        if [ -n "$tailscale_ip" ]; then
+            log "Tailscale already running — IP: $tailscale_ip"
+        fi
+    fi
+
+    if [ -z "$tailscale_ip" ]; then
+        warn "Tailscale not running. Run: tailscale up"
+        warn "Then re-run: ansible-playbook site.yml"
+        warn "Skipping ansible for now..."
+        return
+    fi
+
+    # Run full site.yml (skip tailscale install if already joined)
+    log "Running: ansible-playbook site.yml"
+    ansible-playbook site.yml \
+        -e "tailscale_ipv4=$tailscale_ip" \
+        "${@}" || warn "Ansible completed with errors (check above)"
+
+    fix_kubeconfig
+}
+
+# ------------------------------------------------------------------
+# Fix k3s directory permissions — pastikan user bisa baca /etc/rancher/k3s
+# ------------------------------------------------------------------
+fix_k3s_perms() {
+    if [ -d /etc/rancher/k3s ] && [ ! -r /etc/rancher/k3s/k3s.yaml ]; then
+        log "Fixing /etc/rancher/k3s permissions..."
+        sudo chmod 755 /etc/rancher/k3s
+    fi
+}
+
+# ------------------------------------------------------------------
+# Fix kubectl wrapper — deteksi & perbaiki recursive wrapper di ~/.local/bin/kubectl
+# ------------------------------------------------------------------
+fix_kubectl_wrapper() {
+    local wrapper="$HOME/.local/bin/kubectl"
+    local real_kubectl="/usr/local/bin/kubectl"
+
+    # Kalau ~/.local/bin/kubectl adalah shell script (bukan binary/symlink)
+    if [ -f "$wrapper" ] && [ ! -L "$wrapper" ] && file "$wrapper" 2>/dev/null | grep -qi "shell script"; then
+        # Cek apakah dia recursive (panggil "kubectl" tanpa full path)
+        if grep -q 'exec kubectl' "$wrapper" 2>/dev/null; then
+            warn "Recursive kubectl wrapper detected! Fixing..."
+            sed -i "s|exec kubectl|exec $real_kubectl|" "$wrapper"
+            log "kubectl wrapper fixed → $real_kubectl"
+        fi
+    fi
+
+    # Kalau tidak ada wrapper tapi juga tidak ada kubectl di PATH, buat symlink
+    if [ ! -f "$wrapper" ] && [ -x "$real_kubectl" ] && ! command -v kubectl &>/dev/null; then
+        log "Creating kubectl symlink in ~/.local/bin..."
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$real_kubectl" "$wrapper"
+    fi
+}
+
+# ------------------------------------------------------------------
+# Fix kubeconfig — chown ke user, setup KUBECONFIG permanent
+# ------------------------------------------------------------------
+fix_kubeconfig() {
+    local kubeconfig="$HOME/.kube/k3s-config"
+    local default_kubeconfig="$HOME/.kube/config"
+
+    if [ -f "$kubeconfig" ] && [ "$(stat -c '%U' "$kubeconfig" 2>/dev/null || echo '')" = "root" ]; then
+        log "Fixing kubeconfig ownership..."
+        sudo chown "$USER:$(id -gn)" "$kubeconfig"
+        chmod 600 "$kubeconfig"
+    fi
+
+    # Copy ke default kubeconfig location biar kubectl auto-detect
+    if [ -f "$kubeconfig" ] && [ ! -f "$default_kubeconfig" ]; then
+        mkdir -p "$HOME/.kube"
+        cp "$kubeconfig" "$default_kubeconfig"
+        chmod 600 "$default_kubeconfig"
+        log "Kubeconfig ready: $default_kubeconfig"
+    fi
+
+    # Set KUBECONFIG permanent di .bashrc
+    local final_kubeconfig="${default_kubeconfig:-$kubeconfig}"
+    if [ -f "$final_kubeconfig" ] && ! grep -q "KUBECONFIG" "$HOME/.bashrc" 2>/dev/null; then
+        echo "export KUBECONFIG=$final_kubeconfig" >> "$HOME/.bashrc"
+        log "KUBECONFIG added to ~/.bashrc"
+    fi
+
+    export KUBECONFIG="${KUBECONFIG:-$final_kubeconfig}"
 }
 
 # ------------------------------------------------------------------
@@ -178,7 +293,7 @@ install_uv() {
 # ------------------------------------------------------------------
 install_toolbox() {
     if command -v toolbox &>/dev/null; then
-        log "toolbox already installed: $(toolbox --version 2>&1 || true)"
+        log "toolbox already installed"
     else
         log "Installing Google MCP Toolbox v${TOOLBOX_VERSION}..."
         local url
@@ -189,7 +304,6 @@ install_toolbox() {
         fi
         curl -L -o "$HOME/.local/bin/toolbox" "$url"
         chmod +x "$HOME/.local/bin/toolbox"
-        log "toolbox installed: $(toolbox --version 2>&1 || true)"
     fi
     export PATH="$HOME/.local/bin:$PATH"
 }
@@ -200,14 +314,12 @@ install_toolbox() {
 setup_mcp() {
     log "Setting up Claude Code MCP servers..."
 
-    # Ensure claude CLI available
     if ! command -v claude &>/dev/null; then
         warn "claude CLI not found. Run: npm install -g @anthropic-ai/claude-code"
-        warn "Or install via: curl -fsSL https://claude.ai/code/install.sh | sh"
         return
     fi
 
-    # MySQL MCP with env vars
+    # MySQL MCP
     if claude mcp get mysql &>/dev/null 2>&1; then
         claude mcp remove mysql -s user 2>/dev/null || true
     fi
@@ -218,37 +330,9 @@ setup_mcp() {
         -e MYSQL_USER="${MYSQL_USER:-appuser}" \
         -e MYSQL_PASSWORD="${MYSQL_PASSWORD:-appuser_secret_2026}" \
         -e MYSQL_DATABASE="${MYSQL_DATABASE:-appdb}" \
-        -- "$HOME/.local/bin/toolbox" --prebuilt=mysql --stdio
+        -- "$HOME/.local/bin/toolbox" --prebuilt=mysql --stdio 2>/dev/null || warn "MySQL MCP setup skipped"
 
     log "MCP servers configured"
-}
-
-# ------------------------------------------------------------------
-# Start infrastructure
-# ------------------------------------------------------------------
-start_services() {
-    log "Starting PostgreSQL..."
-    cd "$REPO_DIR/postgres"
-    docker compose up -d
-
-    log "Starting MySQL..."
-    cd "$REPO_DIR/mysql"
-    docker compose up -d
-
-    log "Waiting for services to be healthy..."
-    local retries=0
-    while [ $retries -lt 60 ]; do
-        local pg_ok mysql_ok
-        pg_ok=$(docker ps --filter name=postgres-all --filter health=healthy -q 2>/dev/null || true)
-        mysql_ok=$(docker ps --filter name=mysql-all --filter health=healthy -q 2>/dev/null || true)
-        if [ -n "$pg_ok" ] && [ -n "$mysql_ok" ]; then
-            log "All services healthy"
-            break
-        fi
-        sleep 3
-        retries=$((retries + 1))
-        [ $((retries % 5)) -eq 0 ] && warn "Waiting... ($retries/60)"
-    done
 }
 
 # ------------------------------------------------------------------
@@ -257,26 +341,23 @@ start_services() {
 print_summary() {
     echo ""
     echo "============================================"
-    echo "  DevOps Setup Complete"
+    echo "  DevOps Setup Complete (Ansible)"
     echo "============================================"
     echo ""
-    echo "  PostgreSQL:  localhost:5432"
-    echo "    superuser:  postgres / postgres_super_secret_2026"
-    echo "    app user:   appuser / appuser_secret_2026"
-    echo "    database:   postgres, appdb"
+    echo "  Domain:      ${DOMAIN:-it-helpdesk.local}"
+    echo "  Ansible:     $ANSIBLE_DIR"
     echo ""
-    echo "  MySQL:       localhost:3306"
-    echo "    root:       root / root_secret_2026"
-    echo "    app user:   appuser / appuser_secret_2026"
-    echo "    database:   appdb"
+    echo "  Services (on K3s):"
+    echo "    PostgreSQL 17:  postgres.infra:5432"
+    echo "    MySQL 8.4:      mysql.infra:3306"
+    echo "    Grafana:         grafana.infra:3000"
     echo ""
-    echo "  Repo:        $REPO_DIR"
-    echo "  GitHub:      $GITHUB_REPO"
+    echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""
     echo "  Quick commands:"
-    echo "    cd $REPO_DIR/postgres && make psql"
-    echo "    cd $REPO_DIR/mysql && make mysql"
-    echo "    claude mcp list"
+    echo "    export KUBECONFIG=~/.kube/k3s-config"
+    echo "    kubectl get pods -n infra"
+    echo "    cd $ANSIBLE_DIR && make site"
     echo ""
     echo "============================================"
 }
@@ -288,18 +369,21 @@ main() {
     echo ""
     echo "============================================"
     echo "  DevOps Infrastructure Setup"
+    echo "  Ansible + K3s — Zero Docker"
     echo "  Ubuntu 22.04+ / macOS"
     echo "============================================"
     echo ""
 
     detect_os
     install_base
-    install_docker
+    fix_k3s_perms
     install_uv
-    install_toolbox
+    fix_kubectl_wrapper
+    install_ansible
     setup_ssh
-    clone_repo
-    start_services
+    setup_vault
+    install_toolbox
+    run_ansible "$@"
     setup_mcp
     print_summary
 }
