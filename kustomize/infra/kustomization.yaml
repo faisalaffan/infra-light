@@ -11,4 +11,5 @@ resources:
   - pyroscope
   - grafana
   - alloy
+  - cloudflared
   - ingress

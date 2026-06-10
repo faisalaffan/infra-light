@@ -1,3 +1,10 @@
+# =========================================================================
+# Ingress resources — L7 routing via ingress-nginx
+# Architecture:
+#   Internet → Cloudflare Edge → cloudflared → ingress-nginx (ClusterIP) → Services
+# cloudflared tunnel di Cloudflare dashboard arahkan ke:
+#   http://ingress-nginx-controller.ingress-nginx:80
+# =========================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -5,10 +12,11 @@ metadata:
   namespace: infra
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   rules:
-    - host: ${GRAFANA_DOMAIN:-grafana.${DOMAIN:-it-helpdesk.local}}
+    - host: ${GRAFANA_DOMAIN}
       http:
         paths:
           - path: /
