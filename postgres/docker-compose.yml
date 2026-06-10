@@ -1,0 +1,56 @@
+# ============================================================
+# PostgreSQL Ultimate — All Extensions Enabled
+# ============================================================
+
+services:
+  postgres:
+    image: postgres-all:latest
+    container_name: ${CONTAINER_NAME:-postgres-all}
+    hostname: postgres-all
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      # MySQL FDW env (optional, for mysql_fdw)
+      MYSQL_HOST: ${MYSQL_HOST:-}
+      MYSQL_USER: ${MYSQL_USER:-}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-}
+    volumes:
+      # Persistent data
+      - ${DATA_DIR:-./data}:/var/lib/postgresql/data
+      # Custom configuration
+      - ./config/custom.conf:/etc/postgresql/postgresql.conf:ro
+      # Init scripts
+      - ./init:/docker-entrypoint-initdb.d:ro
+      # Logs visible from host
+      - ./logs:/var/log/postgresql
+    command:
+      - "postgres"
+      - "-c"
+      - "config_file=/etc/postgresql/postgresql.conf"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - postgres-net
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 512M
+
+networks:
+  postgres-net:
+    driver: bridge
+    name: postgres-net
