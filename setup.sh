@@ -350,16 +350,14 @@ fix_k3s_perms() {
 }
 
 # ------------------------------------------------------------------
-# Fix UFW — open required ports for k3s + Tailscale database access
+# Fix UFW — open k3s API port (Tailscale operator handles db access)
 # ------------------------------------------------------------------
 fix_ufw_ports() {
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        for port in 6443 30432 30306; do
-            if ! sudo ufw status 2>/dev/null | grep -q "$port"; then
-                log "Opening UFW port $port..."
-                sudo ufw allow $port/tcp
-            fi
-        done
+        if ! sudo ufw status 2>/dev/null | grep -q "6443"; then
+            log "Opening UFW port 6443 for k3s API..."
+            sudo ufw allow 6443/tcp
+        fi
     fi
 }
 
