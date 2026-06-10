@@ -1,0 +1,113 @@
+// ============================================================
+// Grafana Alloy — Single Collector (Metrics + Logs + Traces + Profiles)
+// ============================================================
+
+// ------------------------------------------------------------------
+// Logging
+// ------------------------------------------------------------------
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ------------------------------------------------------------------
+// Self-monitoring: expose Alloy's own metrics
+// ------------------------------------------------------------------
+prometheus.exporter.self "alloy_self" {
+}
+
+prometheus.scrape "alloy_self" {
+  targets    = prometheus.exporter.self.alloy_self.targets
+  forward_to = [prometheus.remote_write.default.receiver]
+  job_name   = "alloy"
+}
+
+// ------------------------------------------------------------------
+// METRICS — Scrape targets → VictoriaMetrics
+// ------------------------------------------------------------------
+prometheus.scrape "infra_metrics" {
+  targets = [
+    // PostgreSQL exporter (if running)
+    // {"__address__" = "postgres-exporter:9187", "job" = "postgresql"},
+    // MySQL exporter (if running)
+    // {"__address__" = "mysql-exporter:9104", "job" = "mysql"},
+    // Node exporter (if running)
+    // {"__address__" = "node-exporter:9100", "job" = "node"},
+    // Alloy itself
+    {"__address__" = "alloy:12345", "job" = "alloy"},
+  ]
+  forward_to     = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://victoriametrics:8428/api/v1/write"
+    // No auth needed for self-hosted VictoriaMetrics
+  }
+}
+
+// ------------------------------------------------------------------
+// LOGS — Loki receiver (apps send logs via Loki push API)
+// ------------------------------------------------------------------
+loki.source.api "default" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3500
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// ------------------------------------------------------------------
+// TRACES — OTLP receiver → Tempo
+// ------------------------------------------------------------------
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// ------------------------------------------------------------------
+// PROFILES — Pyroscope scrape
+// ------------------------------------------------------------------
+pyroscope.scrape "default" {
+  targets = [
+    // Go apps with pprof enabled:
+    // {"__address__" = "mstore-api:6060", "service_name" = "mstore-api"},
+  ]
+  forward_to = [pyroscope.write.default.receiver]
+}
+
+pyroscope.write "default" {
+  endpoint {
+    url = "http://pyroscope:4040"
+  }
+}
