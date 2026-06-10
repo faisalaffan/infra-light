@@ -1,0 +1,12 @@
+# Docker ignore — exclude build context garbage
+.git
+.gitignore
+.env.example
+.env
+*.md
+docker-compose.yml
+Makefile
+.DS_Store
+*.swp
+*.swo
+*~
