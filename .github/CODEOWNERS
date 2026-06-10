@@ -1,0 +1,18 @@
+# Auto-request review from code owners
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Faisal owns everything by default
+* @faisalaffan
+
+# Docker image changes
+docker-postgres/    @faisalaffan
+
+# CI/CD pipelines
+.github/            @faisalaffan
+
+# K3s deployment manifests
+kustomize/          @faisalaffan
+helmcharts/         @faisalaffan
+
+# Setup orchestration
+setup.sh            @faisalaffan
