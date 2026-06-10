@@ -12,14 +12,19 @@ warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 # ------------------------------------------------------------------
-# Config
+# Config — load from DEVOPS/.env if exists, else use defaults
 # ------------------------------------------------------------------
-GITHUB_REPO="git@github.com:faisalaffan/infra-light.git"
-REPO_DIR="$HOME/infra-light"
-SSH_KEY="$HOME/.ssh/id_rsa"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a; source "$SCRIPT_DIR/.env"; set +a
+fi
+
+GITHUB_REPO="${GIT_REPO:-git@github.com:faisalaffan/infra-light.git}"
+REPO_DIR="${INFRA_DIR:-$HOME/infra-light}"
+SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/id_rsa}"
 GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
-TOOLBOX_VERSION="1.4.0"
+TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 
 # ------------------------------------------------------------------
 # OS Detection
@@ -208,11 +213,11 @@ setup_mcp() {
     fi
 
     claude mcp add mysql -s user \
-        -e MYSQL_HOST=127.0.0.1 \
-        -e MYSQL_PORT=3306 \
-        -e MYSQL_USER=appuser \
-        -e MYSQL_PASSWORD=appuser_secret_2026 \
-        -e MYSQL_DATABASE=appdb \
+        -e MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}" \
+        -e MYSQL_PORT="${MYSQL_PORT:-3306}" \
+        -e MYSQL_USER="${MYSQL_USER:-appuser}" \
+        -e MYSQL_PASSWORD="${MYSQL_PASSWORD:-appuser_secret_2026}" \
+        -e MYSQL_DATABASE="${MYSQL_DATABASE:-appdb}" \
         -- "$HOME/.local/bin/toolbox" --prebuilt=mysql --stdio
 
     log "MCP servers configured"

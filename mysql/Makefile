@@ -1,4 +1,8 @@
-.PHONY: up down restart logs shell mysql status
+# MySQL Makefile — variables from ../.env
+include ../.env
+export
+
+.PHONY: up down restart logs shell mysql status health
 
 up:
 	docker compose up -d
@@ -16,25 +20,25 @@ shell:
 	docker compose exec mysql bash
 
 mysql:
-	docker compose exec mysql mysql -u root -p
+	docker compose exec mysql mysql -u root -p${MYSQL_ROOT_PASSWORD}
 
 mysql-app:
-	docker compose exec mysql mysql -u appuser -pappuser_secret_2026 appdb
+	docker compose exec mysql mysql -u ${MYSQL_USER} -p${MYSQL_PASSWORD} ${MYSQL_DATABASE}
 
 status:
 	docker compose ps
 
 health:
-	@docker compose exec mysql mysqladmin ping -h localhost -u root -proot_secret_2026 && echo "✓ MySQL healthy" || echo "✗ MySQL down"
+	@docker compose exec mysql mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD} && echo "✓ MySQL healthy" || echo "✗ MySQL down"
 
 reset:
 	docker compose down -v
-	sudo rm -rf data/ logs/
+	rm -rf data/ logs/
 	docker compose up -d
 
 backup:
 	@mkdir -p backups
-	docker compose exec -T mysql mysqldump -u root -proot_secret_2026 --all-databases --single-transaction --routines --triggers | gzip > backups/backup-$$(date +%Y%m%d-%H%M%S).sql.gz
+	docker compose exec -T mysql mysqldump -u root -p${MYSQL_ROOT_PASSWORD} --all-databases --single-transaction --routines --triggers | gzip > backups/backup-$$(date +%Y%m%d-%H%M%S).sql.gz
 
 restore:
-	@gunzip -c $$(ls -t backups/*.sql.gz | head -1) | docker compose exec -T mysql mysql -u root -proot_secret_2026
+	@gunzip -c $$(ls -t backups/*.sql.gz | head -1) | docker compose exec -T mysql mysql -u root -p${MYSQL_ROOT_PASSWORD}

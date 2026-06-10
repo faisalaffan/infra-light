@@ -1,0 +1,10 @@
+.env
+**/.env
+!**/.env.example
+data/
+logs/
+backups/
+*.retry
+**/vault.yml
+!**/vault.yml.example
+__pycache__/

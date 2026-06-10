@@ -1,29 +1,41 @@
+# ============================================================
+# MySQL
+# Semua variabel dari root DEVOPS/.env
+# ============================================================
+
 services:
   mysql:
-    image: mysql:8.4
-    container_name: mysql-all
-    hostname: mysql-all
+    image: mysql:${MYSQL_VERSION}
+    container_name: ${MYSQL_CONTAINER_NAME}
+    hostname: ${MYSQL_CONTAINER_NAME}
     restart: unless-stopped
     ports:
-      - "3306:3306"
+      - "${MYSQL_PORT}:3306"
     env_file:
+      - ../.env
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secret_2026}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-appdb}
-      MYSQL_USER: ${MYSQL_USER:-appuser}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-appuser_secret_2026}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - ./data:/var/lib/mysql
       - ./init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_secret_2026}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 60s
     networks:
       - mysql-net
+    deploy:
+      resources:
+        limits:
+          memory: ${MYSQL_MEMORY_LIMIT}
+        reservations:
+          memory: ${MYSQL_MEMORY_RESERVATION}
 
 networks:
   mysql-net:

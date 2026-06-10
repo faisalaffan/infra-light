@@ -1,10 +1,4 @@
-# ============================================================
-# Global vars — semua node
-# ============================================================
-
+# Global vars — dari DEVOPS/.env
 ansible_python_interpreter: /usr/bin/python3
 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
-
-# Tailscale
-tailscale_version: stable
-tailscale_args: "--accept-routes"
+domain: "{{ lookup('env', 'DOMAIN') }}"

@@ -1,23 +1,20 @@
 # ============================================================
-# LVTP + Alloy — Observability Stack (Self-Hosted)
-# VictoriaMetrics + Loki + Tempo + Pyroscope + Grafana + Alloy
+# LVTP + Alloy — Observability Stack
+# Semua variabel dari root DEVOPS/.env
 # ============================================================
 
 services:
-  # ------------------------------------------------------------------
-  # VictoriaMetrics — Metrics (single binary, Prometheus-compatible)
-  # ------------------------------------------------------------------
   victoriametrics:
     image: victoriametrics/victoria-metrics:latest
     container_name: victoriametrics
     restart: unless-stopped
     ports:
-      - "8428:8428"
+      - "${VM_PORT}:8428"
     volumes:
       - ./data/victoriametrics:/victoria-metrics-data
     command:
       - "--storageDataPath=/victoria-metrics-data"
-      - "--retentionPeriod=${VICTORIAMETRICS_RETENTION:-30d}"
+      - "--retentionPeriod=${VM_RETENTION}"
       - "--httpListenAddr=:8428"
       - "--search.maxUniqueTimeseries=300000"
       - "--search.maxQueryDuration=30s"
@@ -33,15 +30,12 @@ services:
         limits:
           memory: 512M
 
-  # ------------------------------------------------------------------
-  # Loki — Logs (Grafana Loki)
-  # ------------------------------------------------------------------
   loki:
     image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT}:3100"
     volumes:
       - ./data/loki:/loki
       - ./loki/config.yaml:/etc/loki/config.yaml:ro
@@ -59,15 +53,12 @@ services:
         limits:
           memory: 512M
 
-  # ------------------------------------------------------------------
-  # Tempo — Traces (Grafana Tempo)
-  # ------------------------------------------------------------------
   tempo:
     image: grafana/tempo:latest
     container_name: tempo
     restart: unless-stopped
     ports:
-      - "3200:3200"   # HTTP query
+      - "${TEMPO_PORT}:3200"
     volumes:
       - ./data/tempo:/var/tempo
       - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
@@ -85,20 +76,14 @@ services:
         limits:
           memory: 512M
 
-  # ------------------------------------------------------------------
-  # Pyroscope — Profiles (Continuous Profiling)
-  # ------------------------------------------------------------------
   pyroscope:
     image: grafana/pyroscope:latest
     container_name: pyroscope
     restart: unless-stopped
     ports:
-      - "4040:4040"
+      - "${PYROSCOPE_PORT}:4040"
     volumes:
       - ./data/pyroscope:/data
-    environment:
-      - PYROSCOPE_BLOCKS_STORAGE_BACKEND=filesystem
-      - PYROSCOPE_BLOCKS_STORAGE_FILESYSTEM_DIR=/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:4040/ready"]
       interval: 10s
@@ -112,22 +97,22 @@ services:
         limits:
           memory: 512M
 
-  # ------------------------------------------------------------------
-  # Grafana — Unified Dashboard
-  # ------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
     container_name: grafana-obs
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT}:3000"
+    env_file:
+      - ../.env
+      - .env
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin_secret_2026}
-      GF_INSTALL_PLUGINS: grafana-pyroscope-app
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
-      GF_FEATURE_TOGGLES_ENABLE: "accessControlOnCall,traceToMetrics,traceToProfiles,traceQLStreaming,correlations"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_INSTALL_PLUGINS: ${GRAFANA_PLUGINS}
+      GF_AUTH_ANONYMOUS_ENABLED: "${GRAFANA_ANONYMOUS_ENABLED}"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: ${GRAFANA_ANONYMOUS_ROLE}
+      GF_FEATURE_TOGGLES_ENABLE: ${GRAFANA_FEATURE_TOGGLES}
     volumes:
       - ./data/grafana:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -143,18 +128,12 @@ services:
         limits:
           memory: 512M
 
-  # ------------------------------------------------------------------
-  # Alloy — Single Collector (Metrics + Logs + Traces + Profiles)
-  # ------------------------------------------------------------------
   alloy:
     image: grafana/alloy:latest
     container_name: alloy
     restart: unless-stopped
     ports:
-      - "12345:12345"  # Alloy self-metrics
-    # OTLP/Loki ports exposed internally on observability-net only
-    # Apps outside Docker: send to localhost:4317 (Tempo) or localhost:4319 (Alloy OTLP)
-
+      - "${ALLOY_PORT}:12345"
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
     command:

@@ -1,13 +1,13 @@
 # ============================================================
-# Vault template — semua secrets
-#
-# Setup:
-#   ansible-vault encrypt_string 'tskey-auth-xxxxx' --name 'vault_tailscale_authkey'
-#   ansible-vault encrypt_string 'eyJhIjo...' --name 'vault_cf_tunnel_token'
-#   ansible-vault encrypt_string 'my-secret-k3s-token' --name 'vault_k3s_token'
-#
+# Vault — semua secrets dari root DEVOPS/.env
+# Encrypt dengan ansible-vault
 # ============================================================
 
-vault_tailscale_authkey: "REPLACE_WITH_ENCRYPTED_STRING"
-vault_cf_tunnel_token: "REPLACE_WITH_ENCRYPTED_STRING"
-vault_k3s_token: "REPLACE_WITH_ENCRYPTED_STRING"
+vault_tailscale_authkey: "{{ lookup('env', 'TAILSCALE_AUTHKEY') }}"
+vault_cf_tunnel_token: "{{ lookup('env', 'CF_TUNNEL_TOKEN') }}"
+vault_k3s_token: "{{ lookup('env', 'K3S_TOKEN') }}"
+vault_pg_superuser_password: "{{ lookup('env', 'PG_SUPERUSER_PASSWORD') }}"
+vault_pg_app_password: "{{ lookup('env', 'PG_APP_PASSWORD') }}"
+vault_mysql_root_password: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') }}"
+vault_mysql_app_password: "{{ lookup('env', 'MYSQL_PASSWORD') }}"
+vault_grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') }}"

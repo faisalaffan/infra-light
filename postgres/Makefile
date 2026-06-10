@@ -1,73 +1,53 @@
-# ============================================================
-# PostgreSQL All-Extensions Makefile
-# ============================================================
+# Postgres Makefile — variables from ../.env
+include ../.env
+export
 
-.PHONY: build up down restart logs shell psql status clean
+.PHONY: build up down restart logs shell psql status health
 
-# Build the custom image
 build:
-	docker build --network host -t postgres-all:latest .
+	docker build --network host -t ${PG_IMAGE} .
 
-# Build without cache
 build-no-cache:
-	docker build --network host --no-cache -t postgres-all:latest .
+	docker build --network host --no-cache -t ${PG_IMAGE} .
 
-# Start in background
 up:
 	docker compose up -d
 
-# Start and follow logs
-up-debug:
-	docker compose up
-
-# Stop
 down:
 	docker compose down
 
-# Restart
 restart:
 	docker compose down && docker compose up -d
 
-# Follow logs
 logs:
 	docker compose logs -f
 
-# Shell into container
 shell:
 	docker compose exec postgres bash
 
-# psql as superuser
 psql:
-	docker compose exec postgres psql -U postgres
+	docker compose exec postgres psql -U ${PG_SUPERUSER}
 
-# psql into appdb
 psql-app:
-	docker compose exec postgres psql -U appuser -d appdb
+	docker compose exec postgres psql -U ${PG_APP_USER} -d ${PG_APP_DB}
 
-# List all enabled extensions
 extensions:
-	docker compose exec postgres psql -U postgres -c "SELECT name, default_version, installed_version, comment FROM pg_available_extensions WHERE installed_version IS NOT NULL ORDER BY name;"
+	docker compose exec postgres psql -U ${PG_SUPERUSER} -c "SELECT name, default_version, installed_version, comment FROM pg_available_extensions WHERE installed_version IS NOT NULL ORDER BY name;"
 
-# Show container status
 status:
 	docker compose ps
 
-# Full reset (WARNING: deletes all data)
 reset:
 	docker compose down -v
 	rm -rf data/ logs/
-	docker compose build --no-cache
 	docker compose up -d
 
-# Backup
 backup:
 	@mkdir -p backups
-	docker compose exec -T postgres pg_dumpall -U postgres --clean --if-exists | gzip > backups/backup-$$(date +%Y%m%d-%H%M%S).sql.gz
+	docker compose exec -T postgres pg_dumpall -U ${PG_SUPERUSER} --clean --if-exists | gzip > backups/backup-$$(date +%Y%m%d-%H%M%S).sql.gz
 
-# Restore latest backup
 restore:
-	@gunzip -c $$(ls -t backups/*.sql.gz | head -1) | docker compose exec -T postgres psql -U postgres
+	@gunzip -c $$(ls -t backups/*.sql.gz | head -1) | docker compose exec -T postgres psql -U ${PG_SUPERUSER}
 
-# Health check
 health:
-	@docker compose exec postgres pg_isready -U postgres && echo "✓ PostgreSQL healthy" || echo "✗ PostgreSQL down"
+	@docker compose exec postgres pg_isready -U ${PG_SUPERUSER} && echo "✓ PostgreSQL healthy" || echo "✗ PostgreSQL down"

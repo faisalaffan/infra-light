@@ -1,54 +1,45 @@
 # ============================================================
 # PostgreSQL Ultimate — All Extensions Enabled
+# Semua variabel dari root DEVOPS/.env
 # ============================================================
 
 services:
   postgres:
-    image: postgres-all:latest
-    container_name: ${CONTAINER_NAME:-postgres-all}
-    hostname: postgres-all
+    image: ${PG_IMAGE}
+    container_name: ${PG_CONTAINER_NAME}
+    hostname: ${PG_CONTAINER_NAME}
     restart: unless-stopped
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${PG_PORT}:5432"
     env_file:
+      - ../.env
       - .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      # MySQL FDW env (optional, for mysql_fdw)
-      MYSQL_HOST: ${MYSQL_HOST:-}
-      MYSQL_USER: ${MYSQL_USER:-}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-}
+      POSTGRES_USER: ${PG_SUPERUSER}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
     volumes:
-      # Persistent data
-      - ${DATA_DIR:-./data}:/var/lib/postgresql/data
-      # Custom configuration
+      - ./data:/var/lib/postgresql/data
       - ./config/custom.conf:/etc/postgresql/postgresql.conf:ro
-      # Init scripts
       - ./init:/docker-entrypoint-initdb.d:ro
-      # Logs visible from host
-      - ./logs:/var/log/postgresql
     command:
       - "postgres"
       - "-c"
       - "config_file=/etc/postgresql/postgresql.conf"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
     networks:
       - postgres-net
-    # Resource limits
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: ${PG_MEMORY_LIMIT}
         reservations:
-          memory: 512M
+          memory: ${PG_MEMORY_RESERVATION}
 
 networks:
   postgres-net:
