@@ -27,6 +27,8 @@ GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
+KUSTOMIZE_DIR="${SCRIPT_DIR}/kustomize"
+HELMCHART_DIR="${SCRIPT_DIR}/helmcharts"
 
 # ------------------------------------------------------------------
 # OS Detection
@@ -191,13 +193,12 @@ VAULTEOF
 }
 
 # ------------------------------------------------------------------
-# Run Ansible playbooks
+# Bootstrap OS-level: Tailscale + K3s (via Ansible)
+# Only runs k3s playbook — infrastructure apps use Kustomize + HelmChart
 # ------------------------------------------------------------------
-run_ansible() {
-    log "Running Ansible bootstrap..."
+bootstrap_k3s() {
     cd "$ANSIBLE_DIR"
 
-    # Get Tailscale IP (skip tailscale role if already running)
     local tailscale_ip=""
     if command -v tailscale &>/dev/null && tailscale status &>/dev/null 2>&1; then
         tailscale_ip=$(tailscale ip -4 2>/dev/null || echo "")
@@ -208,18 +209,84 @@ run_ansible() {
 
     if [ -z "$tailscale_ip" ]; then
         warn "Tailscale not running. Run: tailscale up"
-        warn "Then re-run: ansible-playbook site.yml"
-        warn "Skipping ansible for now..."
+        warn "Skipping K3s bootstrap..."
         return
     fi
 
-    # Run full site.yml (skip tailscale install if already joined)
-    log "Running: ansible-playbook site.yml"
-    ansible-playbook site.yml \
-        -e "tailscale_ipv4=$tailscale_ip" \
-        "${@}" || warn "Ansible completed with errors (check above)"
+    log "Bootstrapping Tailscale + K3s (OS-level)..."
+    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" || true
+    ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" || warn "K3s may already be installed"
 
     fix_kubeconfig
+    fix_k3s_perms
+    fix_ufw_k3s
+    fix_kubectl_wrapper
+}
+
+# ------------------------------------------------------------------
+# Deploy third-party via HelmChart CRD
+# Ingress-nginx + cert-manager — di-manage k3s helm-controller
+# ------------------------------------------------------------------
+deploy_helmcharts() {
+    log "Deploying third-party services (HelmChart)..."
+    for chart in "$HELMCHART_DIR"/*.yaml; do
+        [ -f "$chart" ] || continue
+        log "Applying: $(basename "$chart")"
+        envsubst < "$chart" | kubectl apply -f -
+    done
+    log "HelmCharts applied — k3s helm-controller will install"
+}
+
+# ------------------------------------------------------------------
+# Deploy first-party via Kustomize
+# PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# Menggunakan envsubst untuk resolve ${VAR:-default} dari .env
+# ------------------------------------------------------------------
+deploy_kustomize() {
+    log "Deploying first-party services (Kustomize)..."
+    cd "$KUSTOMIZE_DIR/infra"
+
+    # Load .env untuk envsubst
+    set -a; source "$SCRIPT_DIR/.env" 2>/dev/null; set +a
+
+    # Create namespace
+    kubectl create namespace infra 2>/dev/null || true
+
+    # Create infra-secrets dari .env
+    log "Creating infra-secrets..."
+    envsubst < "$SCRIPT_DIR/kustomize/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
+
+    # Wait for CoreDNS
+    log "Waiting for CoreDNS..."
+    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+
+    # Build kustomize + substitute env vars + apply
+    log "Applying infra kustomization..."
+    kubectl kustomize . | envsubst | kubectl apply -f - || warn "Kustomize apply had errors"
+
+    log "Infrastructure deployed ✓"
+}
+
+# ------------------------------------------------------------------
+# Full deploy: HelmCharts (third-party) → Kustomize (first-party)
+# Idempotent — bisa dijalankan berkali-kali
+# ------------------------------------------------------------------
+deploy_all() {
+    log "=== Deploying all infrastructure ==="
+
+    # 1. Third-party: ingress-nginx, cert-manager
+    deploy_helmcharts
+
+    # 2. Wait for ingress-nginx (blocking — needed by Ingress resources)
+    log "Waiting for ingress-nginx (max 120s)..."
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ingress-nginx \
+        -n ingress-nginx --timeout=120s 2>/dev/null || warn "ingress-nginx not ready yet"
+
+    # 3. First-party: all infra services via Kustomize
+    deploy_kustomize
+
+    log "=== Deploy complete ==="
+    kubectl get pods,svc -n infra -o wide 2>/dev/null || true
 }
 
 # ------------------------------------------------------------------
@@ -356,14 +423,23 @@ print_summary() {
     echo ""
     echo "============================================"
     echo "  DevOps Setup Complete (Ansible)"
+    echo ""
+    echo "============================================"
+    echo "  DevOps Setup Complete"
+    echo "  First-party: Kustomize  |  Third-party: HelmChart"
     echo "============================================"
     echo ""
     echo "  Domain:      ${DOMAIN:-it-helpdesk.local}"
-    echo "  Ansible:     $ANSIBLE_DIR"
+    echo "  Kustomize:   $KUSTOMIZE_DIR/infra"
+    echo "  HelmCharts:  $HELMCHART_DIR"
     echo ""
     echo "  Services (on K3s):"
     echo "    PostgreSQL 17:  postgres.infra:5432"
     echo "    MySQL 8.4:      mysql.infra:3306"
+    echo "    VictoriaMetrics: victoriametrics.infra:8428"
+    echo "    Loki:            loki.infra:3100"
+    echo "    Tempo:           tempo.infra:3200"
+    echo "    Pyroscope:       pyroscope.infra:4040"
     echo "    Grafana:         grafana.infra:3000"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
@@ -371,7 +447,7 @@ print_summary() {
     echo "  Quick commands:"
     echo "    export KUBECONFIG=~/.kube/k3s-config"
     echo "    kubectl get pods -n infra"
-    echo "    cd $ANSIBLE_DIR && make site"
+    echo "    kubectl kustomize $KUSTOMIZE_DIR/infra"
     echo ""
     echo "============================================"
 }
@@ -383,7 +459,7 @@ main() {
     echo ""
     echo "============================================"
     echo "  DevOps Infrastructure Setup"
-    echo "  Ansible + K3s — Zero Docker"
+    echo "  First-party: Kustomize  |  Third-party: HelmChart"
     echo "  Ubuntu 22.04+ / macOS"
     echo "============================================"
     echo ""
@@ -398,7 +474,8 @@ main() {
     setup_ssh
     setup_vault
     install_toolbox
-    run_ansible "$@"
+    bootstrap_k3s "$@"
+    deploy_all
     setup_mcp
     print_summary
 }

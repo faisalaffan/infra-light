@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victoriametrics-data
+  namespace: infra
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: ${VM_DATA_SIZE:-10Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: victoriametrics
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8428
+      targetPort: 8428
+  selector:
+    app: victoriametrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: victoriametrics
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: victoriametrics
+  template:
+    metadata:
+      labels:
+        app: victoriametrics
+    spec:
+      containers:
+        - name: victoriametrics
+          image: victoriametrics/victoria-metrics:latest
+          ports:
+            - containerPort: 8428
+          args:
+            - "--storageDataPath=/storage"
+            - "--retentionPeriod=${VM_RETENTION:-30d}"
+          volumeMounts:
+            - name: data
+              mountPath: /storage
+          resources:
+            requests:
+              memory: "${K8S_REQUESTS_MEMORY:-128Mi}"
+              cpu: "${K8S_REQUESTS_CPU:-100m}"
+            limits:
+              memory: "${K8S_LIMITS_MEMORY:-512Mi}"
+              cpu: "${K8S_LIMITS_CPU:-500m}"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: victoriametrics-data

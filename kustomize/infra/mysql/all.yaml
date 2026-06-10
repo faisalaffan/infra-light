@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    app: mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: infra
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:${MYSQL_VERSION:-8.4}
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: infra-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              memory: "${K8S_REQUESTS_MEMORY:-128Mi}"
+              cpu: "${K8S_REQUESTS_CPU:-100m}"
+            limits:
+              memory: "${MYSQL_MEMORY_LIMIT:-2G}"
+              cpu: "${K8S_LIMITS_CPU:-500m}"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: ${MYSQL_DATA_SIZE:-10Gi}
