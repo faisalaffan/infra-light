@@ -1,0 +1,72 @@
+---
+# Role: ingress_nginx — Nginx Ingress Controller
+# Installed after K3s server. Exposes via NodePort (CF Tunnel → ingress-nginx)
+
+- name: Create ingress-nginx namespace
+  command: /usr/local/bin/k3s kubectl create namespace ingress-nginx
+  register: ns_result
+  failed_when: false
+  changed_when: "'created' in ns_result.stdout"
+
+- name: Add Helm repo
+  shell: |
+    /usr/local/bin/k3s kubectl apply -f - <<'EOF'
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ingress-nginx
+    EOF
+  changed_when: false
+
+- name: Deploy ingress-nginx controller
+  shell: |
+    /usr/local/bin/k3s kubectl apply -f - <<'EOF'
+    apiVersion: helm.cattle.io/v1
+    kind: HelmChart
+    metadata:
+      name: ingress-nginx
+      namespace: kube-system
+    spec:
+      repo: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      version: 4.12.1
+      targetNamespace: ingress-nginx
+      valuesContent: |-
+        controller:
+          kind: DaemonSet
+          hostPort:
+            enabled: true
+            ports:
+              http: 80
+              https: 443
+          service:
+            type: ClusterIP
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: false
+          config:
+            use-forwarded-headers: "true"
+            compute-full-forwarded-for: "true"
+            enable-real-ip: "true"
+            proxy-body-size: "100m"
+            proxy-buffer-size: "16k"
+            client-max-body-size: "100m"
+    EOF
+  register: ingress_deploy
+  changed_when: ingress_deploy.rc == 0
+
+- name: Wait for ingress-nginx to be ready
+  shell: |
+    /usr/local/bin/k3s kubectl wait --namespace ingress-nginx \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/component=controller \
+      --timeout=120s
+  register: ingress_ready
+  retries: 24
+  delay: 5
+  until: ingress_ready.rc == 0
+  changed_when: false
+
+- debug:
+    msg: "✅ ingress-nginx ready — NodePort 80/443 → ClusterIP"

@@ -1,0 +1,76 @@
+---
+# Role: cert_manager — TLS certificates via Let's Encrypt
+# Requires: ingress-nginx running
+
+- name: Deploy cert-manager CRDs + controller
+  shell: |
+    /usr/local/bin/k3s kubectl apply -f - <<'EOF'
+    apiVersion: helm.cattle.io/v1
+    kind: HelmChart
+    metadata:
+      name: cert-manager
+      namespace: kube-system
+    spec:
+      repo: https://charts.jetstack.io
+      chart: cert-manager
+      version: v1.17.1
+      targetNamespace: cert-manager
+      createNamespace: true
+      valuesContent: |-
+        installCRDs: true
+        prometheus:
+          enabled: false
+    EOF
+  register: cert_manager_deploy
+  changed_when: cert_manager_deploy.rc == 0
+
+- name: Wait for cert-manager pods
+  shell: |
+    /usr/local/bin/k3s kubectl wait --namespace cert-manager \
+      --for=condition=ready pod \
+      --selector=app.kubernetes.io/instance=cert-manager \
+      --timeout=120s
+  register: cert_ready
+  retries: 24
+  delay: 5
+  until: cert_ready.rc == 0
+  changed_when: false
+
+- name: Deploy Let's Encrypt ClusterIssuer (staging)
+  shell: |
+    /usr/local/bin/k3s kubectl apply -f - <<'EOF'
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-staging
+    spec:
+      acme:
+        email: "{{ letsencrypt_email | default('faisallionel@gmail.com') }}"
+        server: https://acme-staging-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: letsencrypt-staging-key
+        solvers:
+          - http01:
+              ingress:
+                class: nginx
+    ---
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-prod
+    spec:
+      acme:
+        email: "{{ letsencrypt_email | default('faisallionel@gmail.com') }}"
+        server: https://acme-v02.api.letsencrypt.org/directory
+        privateKeySecretRef:
+          name: letsencrypt-prod-key
+        solvers:
+          - http01:
+              ingress:
+                class: nginx
+    EOF
+  register: issuer_deploy
+  changed_when: issuer_deploy.rc == 0
+
+- debug:
+    msg: "✅ cert-manager ready — ClusterIssuers: letsencrypt-staging + letsencrypt-prod"

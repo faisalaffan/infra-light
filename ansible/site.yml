@@ -6,31 +6,43 @@
 #   1. Tailscale → semua node join mesh, dapat TS IP
 #   2. K3s server → control plane di server node
 #   3. K3s agents → worker nodes join cluster
-#   4. Cloudflared → public exposure via CF Tunnel
+#   4. Ingress-nginx → expose services via NodePort 80/443
+#   5. Cert-manager → Let's Encrypt TLS automation
+#   6. Cloudflared → public exposure via CF Tunnel
 #
 # Usage:
 #   ansible-playbook site.yml -i inventory/hosts.yml --ask-vault-pass
 # ============================================================
 
-- name: 1/4 — Tailscale Mesh (all nodes)
+- name: 1/6 — Tailscale Mesh (all nodes)
   hosts: all
   become: true
   roles:
     - tailscale
 
-- name: 2/4 — K3s Server (control plane)
+- name: 2/6 — K3s Server (control plane)
   hosts: k3s_server
   become: true
   roles:
     - k3s_server
 
-- name: 3/4 — K3s Agents (workers)
+- name: 3/6 — K3s Agents (workers)
   hosts: k3s_agent
   become: true
   roles:
     - k3s_agent
 
-- name: 4/4 — Cloudflare Tunnel (public exposure)
+- name: 4/6 — Ingress NGINX Controller
+  hosts: k3s_server
+  roles:
+    - ingress_nginx
+
+- name: 5/6 — Cert-Manager (Let's Encrypt)
+  hosts: k3s_server
+  roles:
+    - cert_manager
+
+- name: 6/6 — Cloudflare Tunnel (public exposure)
   hosts: k3s_server
   become: true
   roles:

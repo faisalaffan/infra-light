@@ -1,4 +1,4 @@
-.PHONY: ping site tailscale k3s cloudflared encrypt-ts encrypt-cf encrypt-k3s vault-edit lint clean
+.PHONY: ping site tailscale k3s ingress cloudflared encrypt-ts encrypt-cf encrypt-k3s vault-edit lint clean
 
 # Test connection
 ping:
@@ -14,6 +14,9 @@ tailscale:
 
 k3s:
 	ansible-playbook playbooks/k3s.yml -i inventory/hosts.yml --ask-vault-pass
+
+ingress:
+	ansible-playbook playbooks/ingress.yml -i inventory/hosts.yml
 
 cloudflared:
 	ansible-playbook playbooks/cloudflared.yml -i inventory/hosts.yml --ask-vault-pass
