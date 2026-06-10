@@ -1,7 +1,7 @@
-FROM postgres:17-bookworm
+FROM postgres:18-bookworm
 
 LABEL maintainer="it-helpdesk"
-LABEL description="PostgreSQL 17 all extensions: PostGIS, pgvector, pg_cron, TimescaleDB, pg_repack, RUM, HypoPG, pgAudit, PLs, FDWs, contrib"
+LABEL description="PostgreSQL 18.4 all extensions: PostGIS, pgvector, pg_cron, TimescaleDB, pg_repack, RUM, HypoPG, pgAudit, PLs, FDWs, contrib"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -32,67 +32,67 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev zlib1g-dev libreadline-dev libpq-dev \
     libcurl4-openssl-dev libpcre3-dev \
     # --- PGDG dev ---
-    postgresql-server-dev-17 \
+    postgresql-server-dev-18 \
     # ============================================================
     # EXTENSIONS — all from PGDG + TimescaleDB repos
     # ============================================================
     # PostGIS
-    postgresql-17-postgis-3 postgresql-17-postgis-3-scripts \
-    postgresql-17-pgrouting postgresql-17-pgrouting-scripts \
+    postgresql-18-postgis-3 postgresql-18-postgis-3-scripts \
+    postgresql-18-pgrouting postgresql-18-pgrouting-scripts \
     # pgvector
-    postgresql-17-pgvector \
+    postgresql-18-pgvector \
     # TimescaleDB
-    timescaledb-2-postgresql-17 \
+    timescaledb-2-postgresql-18 \
     # pg_cron
-    postgresql-17-cron \
+    postgresql-18-cron \
     # pg_repack
-    postgresql-17-repack \
+    postgresql-18-repack \
     # pgAudit
-    postgresql-17-pgaudit \
+    postgresql-18-pgaudit \
     # HypoPG
-    postgresql-17-hypopg \
+    postgresql-18-hypopg \
     # RUM
-    postgresql-17-rum \
+    postgresql-18-rum \
     # pglogical
-    postgresql-17-pglogical postgresql-17-pglogical-ticker \
+    postgresql-18-pglogical postgresql-18-pglogical-ticker \
     # PL/Lua
-    postgresql-17-pllua \
+    postgresql-18-pllua \
     # Prefix
-    postgresql-17-prefix \
+    postgresql-18-prefix \
     # IP4r
-    postgresql-17-ip4r \
+    postgresql-18-ip4r \
     # JSQuery
-    postgresql-17-jsquery \
+    postgresql-18-jsquery \
     # Unit
-    postgresql-17-unit \
+    postgresql-18-unit \
     # TDigest
-    postgresql-17-tdigest \
+    postgresql-18-tdigest \
     # pgMP
-    postgresql-17-pgmp \
+    postgresql-18-pgmp \
     # FDWs
-    postgresql-17-mysql-fdw \
-    postgresql-17-ogr-fdw \
-    postgresql-17-tds-fdw \
+    postgresql-18-mysql-fdw \
+    postgresql-18-ogr-fdw \
+    postgresql-18-tds-fdw \
     # Replication
-    postgresql-17-wal2json \
-    postgresql-17-repmgr \
-    postgresql-17-pg-failover-slots \
-    postgresql-17-pgq3 \
+    postgresql-18-wal2json \
+    postgresql-18-repmgr \
+    postgresql-18-pg-failover-slots \
+    postgresql-18-pgq3 \
     # Monitoring
-    postgresql-17-plprofiler \
-    postgresql-17-pg-stat-kcache \
-    postgresql-17-pg-wait-sampling \
-    postgresql-17-toastinfo \
+    postgresql-18-plprofiler \
+    postgresql-18-pg-stat-kcache \
+    postgresql-18-pg-wait-sampling \
+    postgresql-18-toastinfo \
     # Contrib
-    postgresql-contrib-17 \
+    postgresql-contrib-18 \
     # Misc
-    postgresql-17-pg-checksums \
-    postgresql-17-pgagent \
-    postgresql-17-pgmemcache \
-    postgresql-17-plpgsql-check \
-    postgresql-17-plsh \
+    postgresql-18-pg-checksums \
+    postgresql-18-pgagent \
+    postgresql-18-pgmemcache \
+    postgresql-18-plpgsql-check \
+    postgresql-18-plsh \
     # PL/Python3U
-    postgresql-plpython3-17 \
+    postgresql-plpython3-18 \
     && rm -rf /var/lib/apt/lists/*
 
 # 5. Python ML libs
