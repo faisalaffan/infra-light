@@ -23,7 +23,7 @@ else
 fi
 
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/id_rsa}"
-GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
+GIT_EMAIL="${GIT_EMAIL:-faisalaffan@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
@@ -242,12 +242,12 @@ deploy_helmcharts() {
 # PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
 # Menggunakan envsubst untuk resolve ${VAR:-default} dari .env
 # ------------------------------------------------------------------
-# Postgres image: faisallionel/postgres-all (Auto-built via GitHub Actions)
+# Postgres image: faisalaffan/postgres-all (Auto-built via GitHub Actions)
 # CI trigger: push ke docker-postgres/ → .github/workflows/build-postgres.yml
 # Local fallback: docker build --network host -t postgres-all:latest docker-postgres/
 # ------------------------------------------------------------------
 build_postgres_image() {
-    local image="docker.io/faisallionel/postgres-all:latest"
+    local image="docker.io/faisalaffan/postgres-all:latest"
     local dockerfile_dir="$SCRIPT_DIR/docker-postgres"
 
     # Cek di k3s containerd dulu

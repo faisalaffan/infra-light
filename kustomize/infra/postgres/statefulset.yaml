@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: docker.io/faisallionel/postgres-all:latest
+          image: docker.io/faisalaffan/postgres-all:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
