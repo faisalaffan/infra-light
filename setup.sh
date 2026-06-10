@@ -242,6 +242,44 @@ deploy_helmcharts() {
 # PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
 # Menggunakan envsubst untuk resolve ${VAR:-default} dari .env
 # ------------------------------------------------------------------
+# Postgres image: faisallionel/postgres-all (Auto-built via GitHub Actions)
+# CI trigger: push ke docker-postgres/ → .github/workflows/build-postgres.yml
+# Local fallback: docker build --network host -t postgres-all:latest docker-postgres/
+# ------------------------------------------------------------------
+build_postgres_image() {
+    local image="docker.io/faisallionel/postgres-all:latest"
+    local dockerfile_dir="$SCRIPT_DIR/docker-postgres"
+
+    # Cek di k3s containerd dulu
+    if sudo k3s crictl images 2>/dev/null | grep -q "postgres-all"; then
+        log "postgres-all image already in k3s containerd"
+        return
+    fi
+
+    # Pre-pull dari Docker Hub (CI-built)
+    if sudo k3s ctr images pull "$image" 2>/dev/null; then
+        log "postgres-all pulled from Docker Hub ✓"
+        return
+    fi
+
+    # Fallback: build lokal kalo ga ada Docker Hub access
+    warn "Cannot pull from Docker Hub — building locally..."
+    [ -f "$dockerfile_dir/Dockerfile" ] || { warn "Dockerfile not found: $dockerfile_dir"; return; }
+
+    if command -v docker &>/dev/null && sudo systemctl is-active --quiet docker 2>/dev/null; then
+        log "Building postgres-all (~10-15 min)..."
+        sudo docker build --network host -t postgres-all:latest "$dockerfile_dir" || { warn "Build failed"; return; }
+        sudo docker save postgres-all:latest | sudo k3s ctr images import -
+        log "postgres-all built & imported to k3s"
+    else
+        warn "Docker not running — install Docker or configure Docker Hub access"
+    fi
+}
+
+# ------------------------------------------------------------------
+# Deploy first-party via Kustomize
+# PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# ------------------------------------------------------------------
 deploy_kustomize() {
     log "Deploying first-party services (Kustomize)..."
     cd "$KUSTOMIZE_DIR/infra"
@@ -255,6 +293,9 @@ deploy_kustomize() {
     # Create infra-secrets dari .env
     log "Creating infra-secrets..."
     envsubst < "$SCRIPT_DIR/kustomize/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
+
+    # Default derivatif
+    export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-it-helpdesk.local}}"
 
     # Wait for CoreDNS
     log "Waiting for CoreDNS..."
@@ -277,12 +318,15 @@ deploy_all() {
     # 1. Third-party: ingress-nginx, cert-manager
     deploy_helmcharts
 
-    # 2. Wait for ingress-nginx (blocking — needed by Ingress resources)
+    # 2. Build custom images (postgres-all dll)
+    build_postgres_image
+
+    # 3. Wait for ingress-nginx (blocking — needed by Ingress resources)
     log "Waiting for ingress-nginx (max 120s)..."
     kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=ingress-nginx \
         -n ingress-nginx --timeout=120s 2>/dev/null || warn "ingress-nginx not ready yet"
 
-    # 3. First-party: all infra services via Kustomize
+    # 4. First-party: all infra services via Kustomize
     deploy_kustomize
 
     log "=== Deploy complete ==="

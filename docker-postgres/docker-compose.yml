@@ -1,0 +1,47 @@
+# ============================================================
+# PostgreSQL Ultimate — All Extensions Enabled
+# Semua variabel dari root DEVOPS/.env
+# ============================================================
+
+services:
+  postgres:
+    image: ${PG_IMAGE}
+    container_name: ${PG_CONTAINER_NAME}
+    hostname: ${PG_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${PG_PORT}:5432"
+    env_file:
+      - ../.env
+      - .env
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
+    volumes:
+      - ./data:/var/lib/postgresql/data
+      - ./config/custom.conf:/etc/postgresql/postgresql.conf:ro
+      - ./init:/docker-entrypoint-initdb.d:ro
+    command:
+      - "postgres"
+      - "-c"
+      - "config_file=/etc/postgresql/postgresql.conf"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - postgres-net
+    deploy:
+      resources:
+        limits:
+          memory: ${PG_MEMORY_LIMIT}
+        reservations:
+          memory: ${PG_MEMORY_RESERVATION}
+
+networks:
+  postgres-net:
+    driver: bridge
+    name: postgres-net
