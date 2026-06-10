@@ -4,10 +4,10 @@ metadata:
   name: postgres
   namespace: infra
   annotations:
-    tailscale.com/expose: "true"
     tailscale.com/hostname: postgres-faisalaffan
 spec:
-  type: ClusterIP
+  type: LoadBalancer
+  loadBalancerClass: tailscale
   ports:
     - port: 5432
       targetPort: 5432
