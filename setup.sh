@@ -235,6 +235,12 @@ bootstrap_k3s() {
 # ------------------------------------------------------------------
 deploy_helmcharts() {
     log "Deploying third-party services (HelmChart)..."
+
+    # Ensure required namespaces exist (Tailscale Operator needs it)
+    kubectl create namespace tailscale 2>/dev/null || true
+    kubectl create namespace cert-manager 2>/dev/null || true
+    kubectl create namespace ingress-nginx 2>/dev/null || true
+
     for chart in "$HELMCHART_DIR"/*.yaml; do
         [ -f "$chart" ] || continue
         log "Applying: $(basename "$chart")"
