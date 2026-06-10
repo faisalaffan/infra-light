@@ -225,7 +225,7 @@ bootstrap_k3s() {
 
     fix_kubeconfig
     fix_k3s_perms
-    fix_ufw_k3s
+    fix_ufw_ports
     fix_kubectl_wrapper
 }
 
@@ -350,16 +350,16 @@ fix_k3s_perms() {
 }
 
 # ------------------------------------------------------------------
-# Fix UFW — allow k3s API port 6443 so pods can reach API server
-# Tanpa ini CoreDNS kubernetes plugin ga bisa sync → DNS loop mati
+# Fix UFW — open required ports for k3s + Tailscale database access
 # ------------------------------------------------------------------
-fix_ufw_k3s() {
+fix_ufw_ports() {
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        if ! sudo ufw status 2>/dev/null | grep -q "6443"; then
-            log "Opening UFW port 6443 for k3s API server..."
-            sudo ufw allow 6443/tcp
-            log "UFW: 6443/tcp opened"
-        fi
+        for port in 6443 30432 30306; do
+            if ! sudo ufw status 2>/dev/null | grep -q "$port"; then
+                log "Opening UFW port $port..."
+                sudo ufw allow $port/tcp
+            fi
+        done
     fi
 }
 
@@ -530,7 +530,7 @@ main() {
     detect_os
     install_base
     fix_k3s_perms
-    fix_ufw_k3s
+    fix_ufw_ports
     install_uv
     fix_kubectl_wrapper
     install_ansible

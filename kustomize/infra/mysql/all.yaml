@@ -4,10 +4,11 @@ metadata:
   name: mysql
   namespace: infra
 spec:
-  type: ClusterIP
+  type: NodePort
   ports:
     - port: 3306
       targetPort: 3306
+      nodePort: 30306
   selector:
     app: mysql
 ---
@@ -29,7 +30,7 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: mysql:${MYSQL_VERSION:-8.4}
+          image: mysql:${MYSQL_VERSION}
           ports:
             - containerPort: 3306
           envFrom:
@@ -40,11 +41,11 @@ spec:
               mountPath: /var/lib/mysql
           resources:
             requests:
-              memory: "${K8S_REQUESTS_MEMORY:-128Mi}"
-              cpu: "${K8S_REQUESTS_CPU:-100m}"
+              memory: "${K8S_REQUESTS_MEMORY}"
+              cpu: "${K8S_REQUESTS_CPU}"
             limits:
-              memory: "${MYSQL_MEMORY_LIMIT:-2G}"
-              cpu: "${K8S_LIMITS_CPU:-500m}"
+              memory: "${MYSQL_MEMORY_LIMIT}"
+              cpu: "${K8S_LIMITS_CPU}"
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -53,4 +54,4 @@ spec:
         storageClassName: local-path
         resources:
           requests:
-            storage: ${MYSQL_DATA_SIZE:-10Gi}
+            storage: ${MYSQL_DATA_SIZE}
