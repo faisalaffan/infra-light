@@ -54,43 +54,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # RUM
     postgresql-18-rum \
     # pglogical
-    postgresql-18-pglogical postgresql-18-pglogical-ticker \
-    # PL/Lua
-    postgresql-18-pllua \
-    # Prefix
-    postgresql-18-prefix \
-    # IP4r
-    postgresql-18-ip4r \
-    # JSQuery
-    postgresql-18-jsquery \
-    # Unit
-    postgresql-18-unit \
-    # TDigest
-    postgresql-18-tdigest \
-    # pgMP
-    postgresql-18-pgmp \
+    postgresql-18-pglogical \
     # FDWs
     postgresql-18-mysql-fdw \
-    postgresql-18-ogr-fdw \
-    postgresql-18-tds-fdw \
     # Replication
     postgresql-18-wal2json \
-    postgresql-18-repmgr \
     postgresql-18-pg-failover-slots \
-    postgresql-18-pgq3 \
-    # Monitoring
-    postgresql-18-plprofiler \
-    postgresql-18-pg-stat-kcache \
-    postgresql-18-pg-wait-sampling \
-    postgresql-18-toastinfo \
     # Contrib
     postgresql-contrib-18 \
-    # Misc
-    postgresql-18-pg-checksums \
-    postgresql-18-pgagent \
-    postgresql-18-pgmemcache \
-    postgresql-18-plpgsql-check \
-    postgresql-18-plsh \
     # PL/Python3U
     postgresql-plpython3-18 \
     && rm -rf /var/lib/apt/lists/*
