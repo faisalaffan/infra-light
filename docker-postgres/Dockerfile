@@ -16,10 +16,10 @@ FROM postgres:18-bookworm
 # ── OCI Labels ────────────────────────────────────────────────────────────────
 LABEL org.opencontainers.image.title="Postgres-All"
 LABEL org.opencontainers.image.description="PostgreSQL 18.4 with PostGIS, pgvector, TimescaleDB, pg_cron, pgAudit, HypoPG, RUM, pglogical, FDWs, Python/ML — all batteries included"
-LABEL org.opencontainers.image.authors="Faisal Affan <faisalaffan@gmail.com>"
+LABEL org.opencontainers.image.authors="Faisal Affan <faisallionel@gmail.com>"
 LABEL org.opencontainers.image.url="https://github.com/faisalaffan/infra-light"
 LABEL org.opencontainers.image.source="https://github.com/faisalaffan/infra-light/tree/dev/docker-postgres"
-LABEL org.opencontainers.image.vendor="it-helpdesk"
+LABEL org.opencontainers.image.vendor="faisalaffan"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL com.faisalaffan.postgres-all.version="18.4"
 LABEL com.faisalaffan.postgres-all.extensions="PostGIS-3 pgvector TimescaleDB-2 pg_cron pg_repack pgAudit HypoPG RUM pglogical mysql-fdw wal2json contrib plpython3"

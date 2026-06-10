@@ -23,7 +23,7 @@ else
 fi
 
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/id_rsa}"
-GIT_EMAIL="${GIT_EMAIL:-faisalaffan@gmail.com}"
+GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
