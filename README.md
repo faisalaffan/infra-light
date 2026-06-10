@@ -1,63 +1,119 @@
-# DevOps Infrastructure
+# infra-light — K3s DevOps Infrastructure
 
-One-command setup for PostgreSQL 17 + MySQL 8.4 + MCP servers.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Build](https://github.com/faisalaffan/infra-light/actions/workflows/build-postgres.yml/badge.svg)](https://github.com/faisalaffan/infra-light/actions)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-faisalaffan%2Fpostgres--all-blue)](https://hub.docker.com/r/faisalaffan/postgres-all)
+
+Zero-Docker infrastructure: **K3s** with **Kustomize** (first-party) + **HelmChart** (third-party).
+
+---
+
+## Architecture
+
+```
+First-party → Kustomize                 Third-party → HelmChart CRD
+├── PostgreSQL 18 (40+ extensions)      ├── ingress-nginx
+├── MySQL 8.4                           └── cert-manager (Let's Encrypt)
+├── Grafana + datasources
+├── Loki · Tempo · Pyroscope
+├── VictoriaMetrics · Alloy
+└── Cloudflare Tunnel
+```
 
 ## Quick Start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/faisalaffan/infra-light/dev/setup.sh | bash
-```
-
-Or manual:
-
-```bash
-git clone git@github.com:faisalaffan/infra-light.git ~/infra-light
-cd ~/infra-light
-chmod +x setup.sh
+git clone git@github.com:faisalaffan/infra-light.git
+cd infra-light
+cp .env.example .env
 ./setup.sh
 ```
 
-## What it does
+## Prerequisites
 
-| Step | Detail |
-|------|--------|
-| OS detect | Ubuntu 22.04+ / Debian / macOS |
-| Docker | Install via get.docker.com or Homebrew |
-| Base pkgs | curl, git, build-essential |
-| SSH key | RSA 4096 for GitHub auth |
-| uv/uvx | Python toolchain (MCP servers) |
-| toolbox | Google MCP Toolbox (mysql MCP) |
-| Clone repo | `faisalaffan/infra-light` → `~/infra-light` |
-| Start services | PostgreSQL (:5432) + MySQL (:3306) |
-| MCP config | Register mysql MCP with Claude Code |
+- Ubuntu 22.04+ / Debian Bookworm
+- [Tailscale](https://tailscale.com) mesh network
+- Domain routed via Cloudflare Tunnel
+
+## Repository Structure
+
+```
+.
+├── kustomize/infra/          # First-party (Kustomize)
+│   ├── base/                 #   Namespace, secrets
+│   ├── postgres/             #   PostgreSQL 18 StatefulSet
+│   ├── mysql/                #   MySQL 8.4 StatefulSet
+│   ├── grafana/              #   Grafana dashboards
+│   ├── loki/                 #   Log aggregation
+│   ├── tempo/                #   Trace storage
+│   ├── pyroscope/            #   Continuous profiling
+│   ├── victoriametrics/      #   Metrics backend
+│   ├── alloy/                #   Grafana Alloy collector
+│   └── ingress/              #   Routing rules
+│
+├── helmcharts/               # Third-party (HelmChart CRD)
+│   ├── ingress-nginx.yaml
+│   └── cert-manager.yaml
+│
+├── docker-postgres/          # Custom PG18 image
+│   ├── Dockerfile
+│   ├── init/
+│   └── config/
+│
+├── ansible/                  # OS bootstrap
+│   └── playbooks/
+│       ├── tailscale.yml
+│       └── k3s.yml
+│
+├── setup.sh                  # One-command deploy
+├── .env.example
+└── .github/workflows/        # CI/CD
+```
+
+## postgres-all Image
+
+Pre-built PostgreSQL 18.4 with everything included:
+
+| Category | Extensions |
+|----------|-----------|
+| Geospatial | PostGIS 3, pgRouting |
+| AI / ML | pgvector, PL/Python3U (numpy, pandas, scikit-learn, langchain, openai) |
+| Time-Series | TimescaleDB 2 |
+| Scheduling | pg_cron |
+| Maintenance | pg_repack |
+| Security | pgAudit |
+| Performance | HypoPG, RUM |
+| Replication | pglogical, wal2json, pg-failover-slots |
+| FDW | mysql-fdw |
+| Contrib | ~50 extensions (btree_gin, hstore, uuid-ossp, pg_stat_statements, ...) |
+
+```bash
+docker run -d --name postgres \
+  -e POSTGRES_PASSWORD=secret \
+  -p 5432:5432 \
+  faisalaffan/postgres-all:latest
+```
 
 ## Services
 
-| Service | Port | Root/Admin | App User | Database |
-|---------|------|-----------|----------|----------|
-| PostgreSQL 17 | 5432 | `postgres` / `postgres_super_secret_2026` | `appuser` / `appuser_secret_2026` | `postgres`, `appdb` |
-| MySQL 8.4 | 3306 | `root` / `root_secret_2026` | `appuser` / `appuser_secret_2026` | `appdb` |
+| Service | Host | Port |
+|---------|------|------|
+| PostgreSQL 18.4 | postgres.infra | 5432 |
+| MySQL 8.4 | mysql.infra | 3306 |
+| Grafana | grafana.infra | 3000 |
+| VictoriaMetrics | victoriametrics.infra | 8428 |
+| Loki | loki.infra | 3100 |
+| Tempo | tempo.infra | 3200 |
+| Pyroscope | pyroscope.infra | 4040 |
 
-## PostgreSQL Extensions (74 total)
+## Contributing
 
-PostGIS 3.6.3, pgvector 0.8.2, TimescaleDB 2.27.2, pg_cron, pglogical, pgaudit, pg_repack, RUM, HypoPG, plpython3u (numpy, pandas, scikit-learn, langchain, openai), postgres_fdw, mysql_fdw, ogr_fdw, tds_fdw, +55 more.
+See [CONTRIBUTING.md](./.github/CONTRIBUTING.md).
 
-## Directory Structure
+## Security
 
-```
-DEVOPS/
-├── setup.sh              # One-script bootstrap (Ubuntu + macOS)
-├── README.md
-├── postgres/
-│   ├── Dockerfile        # Custom PG17 + all extensions
-│   ├── docker-compose.yml
-│   ├── Makefile
-│   ├── .env.example
-│   ├── config/custom.conf
-│   └── init/*.sql
-└── mysql/
-    ├── docker-compose.yml
-    ├── Makefile
-    ├── .env.example
-    └── init/*.sql
-```
+See [SECURITY.md](./.github/SECURITY.md).
+
+## License
+
+MIT © [Faisal Affan](https://github.com/faisalaffan)
