@@ -4,20 +4,27 @@
 [![Build](https://github.com/faisalaffan/infra-light/actions/workflows/build-postgres.yml/badge.svg)](https://github.com/faisalaffan/infra-light/actions)
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-faisalaffan%2Fpostgres--all-blue)](https://hub.docker.com/r/faisalaffan/postgres-all)
 
-Zero-Docker infrastructure: **K3s** with **Kustomize** (first-party) + **HelmChart** (third-party).
+Zero-Docker infrastructure: **K3s** bootstrap via **Ansible**, cluster services via **Kustomize** + **HelmChart**.
 
 ---
 
 ## Architecture
 
 ```
-First-party → Kustomize                 Third-party → HelmChart CRD
-├── PostgreSQL 18 (40+ extensions)      ├── ingress-nginx
-├── MySQL 8.4                           └── cert-manager (Let's Encrypt)
-├── Grafana + datasources
-├── Loki · Tempo · Pyroscope
-├── VictoriaMetrics · Alloy
-└── Cloudflare Tunnel
+Host OS (ansible/)                  Cluster (kubernetes/)
+├── Tailscale Mesh                  ├── HelmCharts (third-party)
+├── K3s Server + Agent              │   ├── ingress-nginx
+└── Kernel tuning                   │   ├── cert-manager (Let's Encrypt)
+                                    │   └── tailscale-operator
+                                    │
+                                    └── Infra (first-party)
+                                        ├── PostgreSQL 18 (40+ extensions)
+                                        ├── MySQL 8.4
+                                        ├── Grafana + datasources
+                                        ├── Loki · Tempo · Pyroscope
+                                        ├── VictoriaMetrics · Alloy
+                                        ├── Cloudflare Tunnel · CloudBeaver
+                                        └── Ingress rules
 ```
 
 ## Quick Start
@@ -26,6 +33,7 @@ First-party → Kustomize                 Third-party → HelmChart CRD
 git clone git@github.com:faisalaffan/infra-light.git
 cd infra-light
 cp .env.example .env
+# edit .env — set DOMAIN, CF_TUNNEL_TOKEN, TAILSCALE_AUTHKEY
 ./setup.sh
 ```
 
@@ -39,35 +47,41 @@ cp .env.example .env
 
 ```
 .
-├── kustomize/infra/          # First-party (Kustomize)
-│   ├── base/                 #   Namespace, secrets
-│   ├── postgres/             #   PostgreSQL 18 StatefulSet
-│   ├── mysql/                #   MySQL 8.4 StatefulSet
-│   ├── grafana/              #   Grafana dashboards
-│   ├── loki/                 #   Log aggregation
-│   ├── tempo/                #   Trace storage
-│   ├── pyroscope/            #   Continuous profiling
-│   ├── victoriametrics/      #   Metrics backend
-│   ├── alloy/                #   Grafana Alloy collector
-│   └── ingress/              #   Routing rules
+├── ansible/                     # Host OS layer (bootstrap k3s + tailscale)
+│   ├── playbooks/
+│   │   ├── tailscale.yml
+│   │   └── k3s.yml
+│   ├── roles/
+│   │   ├── tailscale/
+│   │   ├── k3s_server/
+│   │   └── k3s_agent/
+│   ├── inventory/
+│   └── site.yml                 # Full host bootstrap (all nodes)
 │
-├── helmcharts/               # Third-party (HelmChart CRD)
-│   ├── ingress-nginx.yaml
-│   └── cert-manager.yaml
+├── kubernetes/                  # Cluster layer (applied to k3s)
+│   ├── helmcharts/              #   Third-party HelmChart CRD
+│   │   ├── cert-manager.yaml
+│   │   ├── ingress-nginx.yaml
+│   │   └── tailscale-operator.yaml
+│   ├── infra/                   #   First-party Kustomize
+│   │   ├── base/                #     Namespace, secrets
+│   │   ├── postgres/            #     PostgreSQL 18 StatefulSet
+│   │   ├── mysql/               #     MySQL 8.4 StatefulSet
+│   │   ├── grafana/             #     Grafana dashboards
+│   │   ├── loki/                #     Log aggregation
+│   │   ├── tempo/               #     Trace storage
+│   │   ├── pyroscope/           #     Continuous profiling
+│   │   ├── victoriametrics/     #     Metrics backend
+│   │   ├── alloy/               #     Grafana Alloy collector
+│   │   ├── cloudflared/         #     Cloudflare Tunnel
+│   │   ├── cloudbeaver/         #     Web DB manager
+│   │   └── ingress/             #     Routing rules
+│   └── builds/                  #   Custom Docker images
+│       └── postgres/            #     postgres-all image
 │
-├── docker-postgres/          # Custom PG18 image
-│   ├── Dockerfile
-│   ├── init/
-│   └── config/
-│
-├── ansible/                  # OS bootstrap
-│   └── playbooks/
-│       ├── tailscale.yml
-│       └── k3s.yml
-│
-├── setup.sh                  # One-command deploy
+├── setup.sh                     # One-command: ansible bootstrap → cluster deploy
 ├── .env.example
-└── .github/workflows/        # CI/CD
+└── .github/workflows/           # CI/CD
 ```
 
 ## postgres-all Image
@@ -105,6 +119,7 @@ docker run -d --name postgres \
 | Loki | loki.infra | 3100 |
 | Tempo | tempo.infra | 3200 |
 | Pyroscope | pyroscope.infra | 4040 |
+| CloudBeaver | cloudbeaver.infra | 8978 |
 
 ## Contributing
 

@@ -4,15 +4,14 @@
 # Faisal owns everything by default
 * @faisalaffan
 
-# Docker image changes
-docker-postgres/    @faisalaffan
+# Host OS bootstrap
+ansible/            @faisalaffan
+
+# Cluster deployment manifests
+kubernetes/         @faisalaffan
 
 # CI/CD pipelines
 .github/            @faisalaffan
-
-# K3s deployment manifests
-kustomize/          @faisalaffan
-helmcharts/         @faisalaffan
 
 # Setup orchestration
 setup.sh            @faisalaffan

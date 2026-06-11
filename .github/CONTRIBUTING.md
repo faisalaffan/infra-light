@@ -18,7 +18,7 @@ cp .env.example .env
 ## Docker Image
 
 ```bash
-cd docker-postgres
+cd kubernetes/builds/postgres
 docker build --network host -t postgres-all:latest .
 docker run -e POSTGRES_PASSWORD=test -p 5433:5432 postgres-all:latest
 ```
@@ -26,7 +26,7 @@ docker run -e POSTGRES_PASSWORD=test -p 5433:5432 postgres-all:latest
 ## Kustomize
 
 ```bash
-kubectl kustomize kustomize/infra | envsubst | kubectl diff -f -
+kubectl kustomize kubernetes/infra | envsubst | kubectl diff -f -
 ```
 
 ## Commit Convention

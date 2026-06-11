@@ -15,8 +15,8 @@
 <!-- How was this tested? -->
 
 - [ ] `./setup.sh` completed without errors
-- [ ] `kubectl kustomize kustomize/infra` builds
-- [ ] `docker build -t postgres-all:latest docker-postgres/` (if changed)
+- [ ] `kubectl kustomize kubernetes/infra` builds
+- [ ] `docker build -t postgres-all:latest kubernetes/builds/postgres/` (if changed)
 
 ## Checklist
 
