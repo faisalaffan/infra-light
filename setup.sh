@@ -305,11 +305,45 @@ deploy_kustomize() {
 }
 
 # ------------------------------------------------------------------
+# Fix CoreDNS — force TCP untuk upstream DNS (UDP 53 sering diblok)
+# Issue: Pod network tidak bisa resolve domain eksternal via UDP 53
+# Root cause: UDP port 53 outbound dari pod network diblok firewall/network
+# Fix: CoreDNS forward ke 8.8.8.8/8.8.4.4 pakai TCP (force_tcp)
+# ------------------------------------------------------------------
+fix_coredns_force_tcp() {
+    log "Fixing CoreDNS — force TCP for upstream DNS..."
+
+    # Tunggu CoreDNS ready
+    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+
+    # Cek apakah force_tcp sudah ada di config
+    if kubectl get configmap -n kube-system coredns -o jsonpath='{.data.Corefile}' 2>/dev/null | grep -q "force_tcp"; then
+        log "CoreDNS force_tcp already configured"
+        return
+    fi
+
+    # Terapkan force_tcp — ganti forward . /etc/resolv.conf menjadi forward . 8.8.8.8 8.8.4.4 { force_tcp }
+    kubectl patch configmap -n kube-system coredns --type merge -p '{
+        "data": {
+            "Corefile": ".:53 {\n    errors\n    health\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n      pods insecure\n      fallthrough in-addr.arpa ip6.arpa\n    }\n    hosts /etc/coredns/NodeHosts {\n      ttl 60\n      reload 15s\n      fallthrough\n    }\n    prometheus :9153\n    cache 30\n    loop\n    reload\n    loadbalance\n    import /etc/coredns/custom/*.override\n    forward . 8.8.8.8 8.8.4.4 {\n        force_tcp\n    }\n}\nimport /etc/coredns/custom/*.server\n"
+        }
+    }' 2>/dev/null || warn "Failed to patch CoreDNS ConfigMap"
+
+    kubectl rollout restart deploy -n kube-system coredns 2>/dev/null || true
+    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=60s 2>/dev/null || true
+
+    log "CoreDNS force_tcp applied ✓"
+}
+
+# ------------------------------------------------------------------
 # Full deploy: HelmCharts (third-party) → Kustomize (first-party)
 # Idempotent — bisa dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_all() {
     log "=== Deploying all infrastructure ==="
+
+    # 0. Fix CoreDNS — force TCP DNS (sebelum HelmCharts yg butuh DNS)
+    fix_coredns_force_tcp
 
     # 1. Third-party: ingress-nginx, cert-manager
     deploy_helmcharts
