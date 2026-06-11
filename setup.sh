@@ -27,8 +27,8 @@ GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
 GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
-KUSTOMIZE_DIR="${SCRIPT_DIR}/kustomize"
-HELMCHART_DIR="${SCRIPT_DIR}/helmcharts"
+KUSTOMIZE_DIR="${SCRIPT_DIR}/kubernetes/infra"
+HELMCHART_DIR="${SCRIPT_DIR}/kubernetes/helmcharts"
 
 # ------------------------------------------------------------------
 # OS Detection
@@ -239,12 +239,12 @@ deploy_helmcharts() {
 # Menggunakan envsubst untuk resolve ${VAR:-default} dari .env
 # ------------------------------------------------------------------
 # Postgres image: faisalaffan/postgres-all (Auto-built via GitHub Actions)
-# CI trigger: push ke docker-postgres/ → .github/workflows/build-postgres.yml
-# Local fallback: docker build --network host -t postgres-all:latest docker-postgres/
+# CI trigger: push ke kubernetes/builds/postgres/ → .github/workflows/build-postgres.yml
+# Local fallback: docker build --network host -t postgres-all:latest kubernetes/builds/postgres/
 # ------------------------------------------------------------------
 build_postgres_image() {
     local image="docker.io/faisalaffan/postgres-all:latest"
-    local dockerfile_dir="$SCRIPT_DIR/docker-postgres"
+    local dockerfile_dir="$SCRIPT_DIR/kubernetes/builds/postgres"
 
     # Cek di k3s containerd dulu
     if sudo k3s crictl images 2>/dev/null | grep -q "postgres-all"; then
@@ -278,7 +278,7 @@ build_postgres_image() {
 # ------------------------------------------------------------------
 deploy_kustomize() {
     log "Deploying first-party services (Kustomize)..."
-    cd "$KUSTOMIZE_DIR/infra"
+    cd "$KUSTOMIZE_DIR"
 
     # Load .env untuk envsubst
     set -a; source "$SCRIPT_DIR/.env" 2>/dev/null; set +a
@@ -288,7 +288,7 @@ deploy_kustomize() {
 
     # Create infra-secrets dari .env
     log "Creating infra-secrets..."
-    envsubst < "$SCRIPT_DIR/kustomize/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
+    envsubst < "$SCRIPT_DIR/kubernetes/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
 
     # Default derivatif
     export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
@@ -469,7 +469,7 @@ print_summary() {
     echo "============================================"
     echo ""
     echo "  Domain:      ${DOMAIN:-faisalaffan.com}"
-    echo "  Kustomize:   $KUSTOMIZE_DIR/infra"
+    echo "  Kustomize:   $KUSTOMIZE_DIR"
     echo "  HelmCharts:  $HELMCHART_DIR"
     echo ""
     echo "  Services (on K3s):"
@@ -486,7 +486,7 @@ print_summary() {
     echo "  Quick commands:"
     echo "    export KUBECONFIG=~/.kube/k3s-config"
     echo "    kubectl get pods -n infra"
-    echo "    kubectl kustomize $KUSTOMIZE_DIR/infra"
+    echo "    kubectl kustomize $KUSTOMIZE_DIR"
     echo ""
     echo "============================================"
 }
