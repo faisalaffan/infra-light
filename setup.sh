@@ -150,7 +150,8 @@ setup_vault() {
     if [ ! -f "$vault_file" ]; then
         warn "vault.yml not found, generating from .env..."
     elif head -1 "$vault_file" | grep -q "ANSIBLE_VAULT"; then
-        warn "vault.yml is ENCRYPTED. Overwriting with plaintext from .env..."
+        warn "vault.yml is ENCRYPTED — skipping (decrypt + re-run to regenerate)"
+        return
     else
         log "vault.yml exists (plaintext)"
         return
@@ -203,7 +204,7 @@ bootstrap_k3s() {
     fi
 
     log "Bootstrapping Tailscale + K3s (OS-level)..."
-    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || true
+    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "Tailscale playbook had errors — continuing with K3s"
     ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
 
     fix_kubeconfig
@@ -343,7 +344,7 @@ fix_k3s_perms() {
 # ------------------------------------------------------------------
 fix_ufw_ports() {
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        if ! sudo ufw status 2>/dev/null | grep -q "6443"; then
+        if ! sudo ufw status 2>/dev/null | grep -q "6443/tcp"; then
             log "Opening UFW port 6443 for k3s API..."
             sudo ufw allow 6443/tcp
         fi
@@ -437,9 +438,10 @@ setup_mcp() {
         return
     fi
 
-    # MySQL MCP
+    # MySQL MCP — skip if already configured
     if claude mcp get mysql &>/dev/null 2>&1; then
-        claude mcp remove mysql -s user 2>/dev/null || true
+        log "MySQL MCP already configured, skipping"
+        return
     fi
 
     claude mcp add mysql -s user \
