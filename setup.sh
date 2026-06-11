@@ -112,23 +112,6 @@ SSHEOF
 }
 
 # ------------------------------------------------------------------
-# Clone infra-light repo
-# ------------------------------------------------------------------
-clone_repo() {
-    if [ -d "$REPO_DIR" ]; then
-        log "Repo exists, pulling latest..."
-        cd "$REPO_DIR"
-        git pull origin "${GIT_BRANCH:-dev}" 2>/dev/null || log "Pull skipped (dirty tree?)"
-    else
-        log "Cloning $GITHUB_REPO..."
-        GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone "$GITHUB_REPO" "$REPO_DIR"
-        cd "$REPO_DIR"
-        git checkout "${GIT_BRANCH:-dev}"
-    fi
-    log "Repo ready: $REPO_DIR"
-}
-
-# ------------------------------------------------------------------
 # uv / uvx (for ansible + MCP servers)
 # ------------------------------------------------------------------
 install_uv() {
