@@ -19,5 +19,25 @@
   register: k3s_agent_install
   changed_when: k3s_agent_install.rc == 0
 
+- name: Wait for K3s to be ready
+  wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 60
+
+- name: Get cni0 bridge IP
+  shell: ip -4 addr show cni0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "10.42.0.1"
+  register: cni0_ip
+  changed_when: false
+
+- name: Configure k3s agent — add cni0 IP to kubelet node-ip
+  copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      kubelet-arg:
+        - "node-ip={{ tailscale_ipv4 }},{{ cni0_ip.stdout }}"
+    owner: root
+    mode: 0644
+  notify: restart k3s-agent
+
 - debug:
     msg: "✅ K3s agent joined — {{ ansible_facts.hostname }} → server {{ k3s_server_ip }}"

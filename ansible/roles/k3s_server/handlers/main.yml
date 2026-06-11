@@ -1,0 +1,9 @@
+---
+- name: persist iptables
+  shell: iptables-save > /etc/iptables/rules.v4 2>/dev/null || netfilter-persistent save 2>/dev/null || true
+
+- name: restart k3s
+  systemd:
+    name: k3s
+    state: restarted
+    daemon_reload: true

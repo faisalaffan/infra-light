@@ -31,6 +31,31 @@
   delay: 5
   changed_when: false
 
+- name: Get cni0 bridge IP
+  shell: ip -4 addr show cni0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "10.42.0.1"
+  register: cni0_ip
+  changed_when: false
+
+- name: Allow pod network → kubelet port 10250
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "10250"
+    source: "{{ cni0_ip.stdout }}/24"
+    jump: ACCEPT
+    comment: metrics-server → kubelet
+  notify: persist iptables
+
+- name: Configure k3s — add cni0 IP to kubelet node-ip
+  copy:
+    dest: /etc/rancher/k3s/config.yaml
+    content: |
+      kubelet-arg:
+        - "node-ip={{ tailscale_ipv4 }},{{ cni0_ip.stdout }}"
+    owner: root
+    mode: 0644
+  notify: restart k3s
+
 - name: Get K3s node token
   slurp:
     src: /var/lib/rancher/k3s/server/node-token
