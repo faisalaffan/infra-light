@@ -6,7 +6,7 @@ metadata:
 spec:
   chart: ingress-nginx
   repo: https://kubernetes.github.io/ingress-nginx
-  version: ${INGRESS_NGINX_VERSION:-4.12.1}
+  version: ${INGRESS_NGINX_VERSION}
   targetNamespace: ingress-nginx
   valuesContent: |-
     controller:

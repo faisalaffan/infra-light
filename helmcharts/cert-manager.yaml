@@ -6,7 +6,7 @@ metadata:
 spec:
   chart: cert-manager
   repo: https://charts.jetstack.io
-  version: ${CERT_MANAGER_VERSION:-v1.17.1}
+  version: ${CERT_MANAGER_VERSION}
   targetNamespace: cert-manager
   valuesContent: |-
     installCRDs: true
@@ -18,7 +18,7 @@ metadata:
 spec:
   acme:
     server: https://acme-staging-v02.api.letsencrypt.org/directory
-    email: ${LETSENCRYPT_EMAIL:-faisallionel@gmail.com}
+    email: ${LETSENCRYPT_EMAIL}
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
@@ -33,7 +33,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: ${LETSENCRYPT_EMAIL:-faisallionel@gmail.com}
+    email: ${LETSENCRYPT_EMAIL}
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:

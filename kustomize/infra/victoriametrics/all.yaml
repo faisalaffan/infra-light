@@ -8,7 +8,7 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: ${VM_DATA_SIZE:-10Gi}
+      storage: ${VM_DATA_SIZE}
 ---
 apiVersion: v1
 kind: Service
@@ -45,17 +45,17 @@ spec:
             - containerPort: 8428
           args:
             - "--storageDataPath=/storage"
-            - "--retentionPeriod=${VM_RETENTION:-30d}"
+            - "--retentionPeriod=${VM_RETENTION}"
           volumeMounts:
             - name: data
               mountPath: /storage
           resources:
             requests:
-              memory: "${K8S_REQUESTS_MEMORY:-128Mi}"
-              cpu: "${K8S_REQUESTS_CPU:-100m}"
+              memory: "${K8S_REQUESTS_MEMORY}"
+              cpu: "${K8S_REQUESTS_CPU}"
             limits:
-              memory: "${K8S_LIMITS_MEMORY:-512Mi}"
-              cpu: "${K8S_LIMITS_CPU:-500m}"
+              memory: "${K8S_LIMITS_MEMORY}"
+              cpu: "${K8S_LIMITS_CPU}"
       volumes:
         - name: data
           persistentVolumeClaim:

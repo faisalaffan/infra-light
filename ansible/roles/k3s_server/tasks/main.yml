@@ -9,7 +9,7 @@
       --node-ip={{ tailscale_ipv4 }} \
       --advertise-address={{ tailscale_ipv4 }} \
       --tls-san={{ tailscale_ipv4 }} \
-      --tls-san={{ inventory_hostname }} \
+      --tls-san={{ ansible_facts.hostname }} \
       --flannel-iface=tailscale0 \
       --disable=traefik \
       --disable=servicelb
@@ -24,7 +24,7 @@
     timeout: 60
 
 - name: Wait for node ready
-  command: kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  command: kubectl get node {{ ansible_facts.hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   register: node_ready
   until: node_ready.stdout == "True"
   retries: 30
@@ -56,7 +56,7 @@
 
 - debug:
     msg: |
-      ✅ K3s server installed on {{ inventory_hostname }}
+      ✅ K3s server installed on {{ ansible_facts.hostname }}
          Tailscale IP: {{ tailscale_ipv4 }}
          Kubeconfig:   ~/.kube/k3s-config
          K3s token:    {{ k3s_token | truncate(20, True, '...') }}

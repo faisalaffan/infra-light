@@ -8,4 +8,4 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: ${PG_DATA_SIZE:-20Gi}
+      storage: ${PG_DATA_SIZE}

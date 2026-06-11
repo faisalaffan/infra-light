@@ -8,7 +8,7 @@ spec:
   storageClassName: local-path
   resources:
     requests:
-      storage: ${GRAFANA_DATA_SIZE:-5Gi}
+      storage: ${GRAFANA_DATA_SIZE}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -84,11 +84,11 @@ spec:
               mountPath: /var/lib/grafana
           resources:
             requests:
-              memory: "${K8S_REQUESTS_MEMORY:-128Mi}"
-              cpu: "${K8S_REQUESTS_CPU:-100m}"
+              memory: "${K8S_REQUESTS_MEMORY}"
+              cpu: "${K8S_REQUESTS_CPU}"
             limits:
-              memory: "${K8S_LIMITS_MEMORY:-512Mi}"
-              cpu: "${K8S_LIMITS_CPU:-500m}"
+              memory: "${K8S_LIMITS_MEMORY}"
+              cpu: "${K8S_LIMITS_CPU}"
       volumes:
         - name: datasources
           configMap:
