@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: titiler
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: titiler
+  template:
+    metadata:
+      labels:
+        app: titiler
+    spec:
+      containers:
+        - name: titiler
+          image: ghcr.io/developmentseed/titiler:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: WORKERS_PER_CORE
+              value: "1"
+            - name: MAX_THREADS
+              value: "2"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "384Mi"
+              cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: titiler
+  namespace: infra
+spec:
+  selector:
+    app: titiler
+  ports:
+    - port: 8080
+      targetPort: 8080

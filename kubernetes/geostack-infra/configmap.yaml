@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geostack-config
+  namespace: infra
+data:
+  POSTGRES_USER: "geostack"
+  POSTGRES_DB: "geostack"
+  POSTGRES_PORT: "5432"
+  API_PORT: "3000"
+  JWT_ISSUER: "https://keycloak.faisalaffan.com/realms/geostack"
+  MINIO_ENDPOINT: "minio"
+  MINIO_PORT: "9000"
+  MINIO_BUCKET: "geostack-data"
+  MARTIN_URL: "http://martin:3000"
+  TITILER_URL: "http://titiler:8080"
+  GEOSERVER_URL: "http://geoserver:8080"
+  KEYCLOAK_REALM: "geostack"
+  VITE_API_URL: "https://geostack.faisalaffan.com"
+  VITE_KEYCLOAK_URL: "https://keycloak.faisalaffan.com"
+  VITE_KEYCLOAK_REALM: "geostack"
+  VITE_KEYCLOAK_CLIENT_ID: "geostack-web"
