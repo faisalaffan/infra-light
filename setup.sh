@@ -57,6 +57,10 @@ detect_os() {
 # Base packages (curl, git, gnupg)
 # ------------------------------------------------------------------
 install_base() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        warn "Skipping base packages (needs sudo)"
+        return
+    fi
     log "Installing base packages..."
     if [ "$OS" = "linux" ]; then
         sudo apt-get update -qq
@@ -422,6 +426,9 @@ deploy_all() {
 # Fix k3s directory permissions — pastikan user bisa baca /etc/rancher/k3s
 # ------------------------------------------------------------------
 fix_k3s_perms() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
     if [ -d /etc/rancher/k3s ] && [ ! -r /etc/rancher/k3s/k3s.yaml ]; then
         log "Fixing /etc/rancher/k3s permissions..."
         sudo chmod 755 /etc/rancher/k3s
@@ -432,6 +439,9 @@ fix_k3s_perms() {
 # Fix UFW — open k3s API port (Tailscale operator handles db access)
 # ------------------------------------------------------------------
 fix_ufw_ports() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
         if ! sudo ufw status 2>/dev/null | grep -q "6443/tcp"; then
             log "Opening UFW port 6443 for k3s API..."
@@ -545,6 +555,73 @@ setup_mcp() {
 }
 
 # ------------------------------------------------------------------
+# Verify TLS — check cert-manager issues certificates after deploy
+# ------------------------------------------------------------------
+verify_tls() {
+    log "Verifying TLS certificates..."
+    kubectl get clusterissuer 2>/dev/null | grep -q "True" || {
+        warn "No ready ClusterIssuer found — TLS will not work"
+        return
+    }
+
+    # Check all ingresses with cert-manager annotation
+    local tls_ingresses
+    tls_ingresses=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '
+      .items[] | select(.metadata.annotations["cert-manager.io/cluster-issuer"] != null) |
+      "\(.metadata.namespace)/\(.metadata.name)"
+    ' 2>/dev/null || true)
+
+    if [ -z "$tls_ingresses" ]; then
+        warn "No ingresses with cert-manager annotation found"
+        return
+    fi
+
+    local timeout=180
+    local start_time=$(date +%s)
+
+    for ingress_ref in $tls_ingresses; do
+        local ns="${ingress_ref%%/*}"
+        local name="${ingress_ref##*/}"
+
+        # Extract TLS secret name from ingress
+        local secret_name
+        secret_name=$(kubectl get ingress "$name" -n "$ns" -o jsonpath='{.spec.tls[*].secretName}' 2>/dev/null || true)
+
+        if [ -z "$secret_name" ]; then
+            warn "Ingress $ns/$name has no tls.secretName — skipping"
+            continue
+        fi
+
+        log "Waiting for TLS cert: $ns/$secret_name (timeout ${timeout}s)..."
+
+        while true; do
+            local elapsed=$(($(date +%s) - start_time))
+            if [ $elapsed -ge $timeout ]; then
+                warn "Timeout waiting for TLS cert $ns/$secret_name after ${timeout}s"
+                break
+            fi
+
+            local cert_ready
+            cert_ready=$(kubectl get cert "$secret_name" -n "$ns" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+
+            if [ "$cert_ready" = "True" ]; then
+                log "TLS cert $ns/$secret_name ✓ Ready"
+                break
+            fi
+
+            # Show challenge state if stuck
+            local challenge_state
+            challenge_state=$(kubectl get challenge -n "$ns" -o jsonpath='{range .items[*]}{.status.reason}{"\n"}{end}' 2>/dev/null | head -1 || echo "waiting...")
+            log "  $ns/$secret_name: $cert_ready ($challenge_state)"
+
+            sleep 10
+        done
+    done
+
+    log "TLS verification complete"
+}
+
+# ------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------
 print_summary() {
@@ -593,15 +670,21 @@ main() {
     echo ""
 
     # Cache sudo password once (needed for ansible become + apt installs)
-    if ! sudo -n true 2>/dev/null; then
+    # Non-interactive mode: skip sudo, run only kubectl-based fixes
+    if [ ! -t 0 ]; then
+        warn "Non-interactive mode — skipping sudo-requiring steps (ansible, apt)"
+        SUDO_SKIP=true
+    fi
+
+    if [ "${SUDO_SKIP:-false}" = false ] && ! sudo -n true 2>/dev/null; then
         read -sp "[sudo] password for $USER: " SUDO_PASS
         echo
-        # Validate immediately
         if echo "$SUDO_PASS" | sudo -S true 2>/dev/null; then
             export SUDO_PASS
             log "Sudo access confirmed"
         else
             warn "Wrong sudo password — some steps may fail"
+            SUDO_SKIP=true
         fi
     fi
 
@@ -615,9 +698,16 @@ main() {
     setup_ssh
     setup_vault
     install_toolbox
-    bootstrap_k3s "$@"
+
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        warn "Skipping bootstrap_k3s (needs sudo)"
+    else
+        bootstrap_k3s "$@"
+    fi
+
     deploy_all
     setup_mcp
+    verify_tls
     print_summary
 }
 
