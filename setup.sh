@@ -275,6 +275,7 @@ build_postgres_image() {
 # ------------------------------------------------------------------
 # Deploy first-party via Kustomize
 # PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# Idempotent — aman dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_kustomize() {
     log "Deploying first-party services (Kustomize)..."
@@ -286,20 +287,74 @@ deploy_kustomize() {
     # Create namespace
     kubectl create namespace infra 2>/dev/null || true
 
-    # Create infra-secrets dari .env
-    log "Creating infra-secrets..."
-    envsubst < "$SCRIPT_DIR/kubernetes/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
+    # --- Pre-flight checks ---
+    log "Pre-flight: checking cluster health..."
+    if ! kubectl cluster-info &>/dev/null; then
+        err "Cannot reach Kubernetes cluster. Is K3s running?"
+    fi
+    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+
+    # --- infra-secrets (hanya create, jangan overwrite) ---
+    if kubectl get secret infra-secrets -n infra &>/dev/null; then
+        log "infra-secrets already exists — skipping (delete manually to regenerate)"
+    else
+        log "Creating infra-secrets from .env..."
+        envsubst < "$SCRIPT_DIR/kubernetes/infra/base/secrets-template.yaml" | kubectl apply -f -
+        log "infra-secrets created ✓"
+    fi
+
+    # --- tunnel-token secret (hanya create, jangan overwrite) ---
+    if [ -z "${CF_TUNNEL_TOKEN:-}" ]; then
+        warn "CF_TUNNEL_TOKEN is empty in .env — cloudflared tunnel will fail"
+        warn "Set CF_TUNNEL_TOKEN in $SCRIPT_DIR/.env and re-run"
+    elif kubectl get secret tunnel-token -n infra &>/dev/null; then
+        # Verifikasi token valid (bukan placeholder envsubst)
+        local token_val
+        token_val=$(kubectl get secret tunnel-token -n infra -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+        if [ -n "$token_val" ] && [ "$token_val" != '${CF_TUNNEL_TOKEN}' ]; then
+            log "tunnel-token already exists with valid token — skipping"
+        else
+            warn "tunnel-token exists but contains placeholder — regenerating from .env..."
+            kubectl create secret generic tunnel-token -n infra \
+                --from-literal=token="${CF_TUNNEL_TOKEN}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+        fi
+    else
+        log "Creating tunnel-token from .env..."
+        kubectl create secret generic tunnel-token -n infra \
+            --from-literal=token="${CF_TUNNEL_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+    fi
 
     # Default derivatif
     export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
-
-    # Wait for CoreDNS
-    log "Waiting for CoreDNS..."
-    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+    export MINIO_CONSOLE_HOSTNAME="${MINIO_CONSOLE_HOSTNAME:-minio.${DOMAIN:-faisalaffan.com}}"
+    export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN:-faisalaffan.com}}"
 
     # Build kustomize + substitute env vars + apply
+    # Filter: skip PVC errors (cannot patch storage), surface real errors
     log "Applying infra kustomization..."
-    kubectl kustomize . | envsubst | kubectl apply -f - || warn "Kustomize apply had errors"
+    local apply_output apply_rc
+    apply_output=$(kubectl kustomize . | envsubst | kubectl apply -f - 2>&1)
+    apply_rc=$?
+
+    # Filter known-harmless errors (PVC storage resize, unchanged resources)
+    local real_errors
+    real_errors=$(echo "$apply_output" | grep -v "unchanged\|configured\|created" | grep -iE "error|Error|failed|invalid" || true)
+
+    if [ -n "$real_errors" ]; then
+        # Check apakah cuma PVC errors yg harmless
+        local non_pvc_errors
+        non_pvc_errors=$(echo "$real_errors" | grep -v "PersistentVolumeClaim.*field can not be less than status" || true)
+        if [ -n "$non_pvc_errors" ]; then
+            warn "Kustomize apply had errors:"
+            echo "$non_pvc_errors" | while IFS= read -r line; do warn "  $line"; done
+        else
+            log "Kustomize applied (PVC size warnings ignored — harmless)"
+        fi
+    else
+        log "Kustomize applied clean ✓"
+    fi
 
     log "Infrastructure deployed ✓"
 }

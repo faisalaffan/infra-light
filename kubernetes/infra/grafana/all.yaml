@@ -77,6 +77,13 @@ spec:
           envFrom:
             - secretRef:
                 name: infra-secrets
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources

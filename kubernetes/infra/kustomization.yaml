@@ -14,3 +14,4 @@ resources:
   - cloudflared
   - cloudbeaver
   - ingress
+  - networkpolicy

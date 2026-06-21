@@ -74,6 +74,13 @@ spec:
           ports:
             - containerPort: 3100
           args: ["-config.file=/etc/loki/config.yaml"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: config
               mountPath: /etc/loki

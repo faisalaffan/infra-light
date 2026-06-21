@@ -23,6 +23,12 @@ spec:
           envFrom:
             - secretRef:
                 name: infra-secrets
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

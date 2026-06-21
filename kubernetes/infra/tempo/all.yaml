@@ -72,6 +72,13 @@ spec:
             - containerPort: 3200
             - containerPort: 4317
           args: ["-config.file=/etc/tempo/config.yaml"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: config
               mountPath: /etc/tempo

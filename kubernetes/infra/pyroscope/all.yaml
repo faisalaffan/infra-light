@@ -43,6 +43,13 @@ spec:
           image: grafana/pyroscope:latest
           ports:
             - containerPort: 4040
+          securityContext:
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: data
               mountPath: /data
