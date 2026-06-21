@@ -21,6 +21,7 @@ spec:
         - ${CLOUDBEAVER_HOSTNAME}
         - ${MINIO_CONSOLE_HOSTNAME}
         - ${S3_HOSTNAME}
+        - ${EXCALIDRAW_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -63,3 +64,13 @@ spec:
                 name: minio
                 port:
                   number: 9000
+    - host: ${EXCALIDRAW_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: excalidraw
+                port:
+                  number: 80

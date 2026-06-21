@@ -332,8 +332,10 @@ deploy_kustomize() {
 
     # Default derivatif
     export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
+    export CLOUDBEAVER_HOSTNAME="${CLOUDBEAVER_HOSTNAME:-db.${DOMAIN:-faisalaffan.com}}"
     export MINIO_CONSOLE_HOSTNAME="${MINIO_CONSOLE_HOSTNAME:-minio.${DOMAIN:-faisalaffan.com}}"
     export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN:-faisalaffan.com}}"
+    export EXCALIDRAW_HOSTNAME="${EXCALIDRAW_HOSTNAME:-excalidraw.${DOMAIN:-faisalaffan.com}}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors
