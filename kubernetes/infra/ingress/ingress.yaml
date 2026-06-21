@@ -15,6 +15,13 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${GRAFANA_DOMAIN}
+        - ${CLOUDBEAVER_HOSTNAME}
+        - ${MINIO_CONSOLE_HOSTNAME}
+        - ${S3_HOSTNAME}
+      secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
       http:
