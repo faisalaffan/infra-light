@@ -1,5 +1,5 @@
 # =========================================================================
-# Redis 7 — internal service redis.infra:6379
+# Redis 7 — exposed via Tailscale LoadBalancer (redis-faisalaffan.ts.net:6379)
 # Redis Commander UI deployed separately via HelmChart
 # =========================================================================
 apiVersion: v1
@@ -19,8 +19,11 @@ kind: Service
 metadata:
   name: redis
   namespace: infra
+  annotations:
+    tailscale.com/hostname: redis-faisalaffan
 spec:
-  type: ClusterIP
+  type: LoadBalancer
+  loadBalancerClass: tailscale
   ports:
     - port: 6379
       targetPort: 6379
