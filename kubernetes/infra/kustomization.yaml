@@ -5,6 +5,7 @@ resources:
   - base
   - postgres
   - mysql
+  - redis
   - victoriametrics
   - loki
   - tempo

@@ -22,6 +22,7 @@ spec:
         - ${MINIO_CONSOLE_HOSTNAME}
         - ${S3_HOSTNAME}
         - ${EXCALIDRAW_HOSTNAME}
+        - ${REDIS_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -74,3 +75,13 @@ spec:
                 name: excalidraw
                 port:
                   number: 80
+    - host: ${REDIS_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: redis-commander
+                port:
+                  number: 8081
