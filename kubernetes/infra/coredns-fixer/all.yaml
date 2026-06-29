@@ -1,0 +1,76 @@
+# =========================================================================
+# CoreDNS force_tcp fixer — CronJob auto-patch ConfigMap
+# K3s Addon controller overwrites CoreDNS config setiap reconcile.
+# CronJob ini memastikan force_tcp selalu ada (jalan tiap 5 menit).
+# =========================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coredns-fixer
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coredns-fixer
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["coredns"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["coredns"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coredns-fixer
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: coredns-fixer
+    namespace: kube-system
+roleRef:
+  kind: Role
+  name: coredns-fixer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: coredns-fixer
+  namespace: kube-system
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: coredns-fixer
+          restartPolicy: OnFailure
+          containers:
+            - name: fixer
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  CURRENT=$(kubectl get cm coredns -n kube-system -o jsonpath='{.data.Corefile}')
+                  if echo "$CURRENT" | grep -q "force_tcp"; then
+                    echo "force_tcp already present — skipping"
+                    exit 0
+                  fi
+                  echo "force_tcp missing — patching CoreDNS"
+                  kubectl patch cm coredns -n kube-system --type merge -p '{
+                    "data": {
+                      "Corefile": ".:53 {\n    errors\n    health\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n      pods insecure\n      fallthrough in-addr.arpa ip6.arpa\n    }\n    hosts /etc/coredns/NodeHosts {\n      ttl 60\n      reload 15s\n      fallthrough\n    }\n    prometheus :9153\n    cache 30\n    loop\n    reload\n    loadbalance\n    import /etc/coredns/custom/*.override\n    forward . 8.8.8.8 8.8.4.4 {\n        force_tcp\n    }\n}\nimport /etc/coredns/custom/*.server\n"
+                    }
+                  }'
+                  kubectl rollout restart deploy coredns -n kube-system
+                  echo "CoreDNS force_tcp fix applied"
