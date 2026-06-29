@@ -86,10 +86,6 @@ spec:
             - containerPort: 18083
               name: dashboard
           env:
-            - name: EMQX_NODE__NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
             - name: EMQX_DASHBOARD__DEFAULT_USERNAME
               value: "${EMQX_DASHBOARD_USERNAME}"
             - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
@@ -98,7 +94,6 @@ spec:
                   name: infra-secrets
                   key: EMQX_DASHBOARD_PASSWORD
           securityContext:
-            runAsNonRoot: true
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
