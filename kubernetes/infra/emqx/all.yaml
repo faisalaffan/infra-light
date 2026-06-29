@@ -1,0 +1,139 @@
+# =========================================================================
+# EMQX 5.8 — MQTT Broker (IoT + internal messaging)
+# Dashboard via Ingress (emqx.faisalaffan.com)
+# MQTT ports via Tailscale LoadBalancer (emqx-mqtt-faisalaffan.ts.net)
+# =========================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: emqx-data
+  namespace: infra
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: ${EMQX_DATA_SIZE}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - port: 18083
+      targetPort: 18083
+      name: dashboard
+  selector:
+    app: emqx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx-mqtt
+  namespace: infra
+  annotations:
+    tailscale.com/hostname: emqx-mqtt-faisalaffan
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - port: 1883
+      targetPort: 1883
+      name: mqtt-tcp
+    - port: 8083
+      targetPort: 8083
+      name: mqtt-ws
+    - port: 8883
+      targetPort: 8883
+      name: mqtt-ssl
+    - port: 8084
+      targetPort: 8084
+      name: mqtt-wss
+  selector:
+    app: emqx
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: emqx
+          image: emqx/emqx:${EMQX_VERSION}
+          ports:
+            - containerPort: 1883
+              name: mqtt-tcp
+            - containerPort: 8083
+              name: mqtt-ws
+            - containerPort: 8883
+              name: mqtt-ssl
+            - containerPort: 8084
+              name: mqtt-wss
+            - containerPort: 18083
+              name: dashboard
+          env:
+            - name: EMQX_NODE__NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: EMQX_DASHBOARD__DEFAULT_USERNAME
+              value: "${EMQX_DASHBOARD_USERNAME}"
+            - name: EMQX_DASHBOARD__DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: EMQX_DASHBOARD_PASSWORD
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /opt/emqx/data
+          resources:
+            requests:
+              memory: "${K8S_REQUESTS_MEMORY}"
+              cpu: "${K8S_REQUESTS_CPU}"
+            limits:
+              memory: "${EMQX_MEMORY_LIMIT}"
+              cpu: "${K8S_LIMITS_CPU}"
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 18083
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 18083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /status
+              port: 18083
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: emqx-data

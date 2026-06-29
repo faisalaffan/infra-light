@@ -22,6 +22,7 @@ spec:
         - ${MINIO_CONSOLE_HOSTNAME}
         - ${S3_HOSTNAME}
         - ${EXCALIDRAW_HOSTNAME}
+        - ${EMQX_DASHBOARD_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
       secretName: infra-tls
   rules:
@@ -85,3 +86,13 @@ spec:
                 name: redis-commander
                 port:
                   number: 80
+    - host: ${EMQX_DASHBOARD_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: emqx
+                port:
+                  number: 18083
