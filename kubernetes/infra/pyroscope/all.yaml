@@ -41,6 +41,10 @@ spec:
       containers:
         - name: pyroscope
           image: grafana/pyroscope:latest
+          args:
+            - --target=all
+            - --storage.backend=filesystem
+            - --storage.filesystem.dir=/data
           ports:
             - containerPort: 4040
           securityContext:
@@ -60,6 +64,19 @@ spec:
             limits:
               memory: "${K8S_LIMITS_MEMORY}"
               cpu: "${K8S_LIMITS_CPU}"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4040
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /healthy
+              port: 4040
+            initialDelaySeconds: 60
+            periodSeconds: 30
       volumes:
         - name: data
           persistentVolumeClaim:
