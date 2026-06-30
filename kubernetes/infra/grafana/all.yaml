@@ -55,6 +55,10 @@ data:
         url: http://tempo.infra.svc:3200
         access: proxy
         jsonData:
+          nodeGraph:
+            enabled: true
+          serviceMap:
+            datasourceUid: victoriametrics
           tracesToLogsV2:
             datasourceUid: loki
             spanStartTimeShift: "-5m"
@@ -67,8 +71,10 @@ data:
           tracesToMetrics:
             datasourceUid: victoriametrics
             queries:
-              - name: "Request Rate"
-                query: 'sum(rate(http_requests_total{service_name="$${__span.tags["service.name"]}"}[5m]))'
+              - name: "Request Rate (span metrics)"
+                query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags}}[5m]))'
+              - name: "Error Rate (span metrics)"
+                query: 'sum(rate(traces_spanmetrics_calls_total{$${__tags},status_code=~"5.."}[5m]))'
           tracesToProfiles:
             datasourceUid: pyroscope
             tags:
