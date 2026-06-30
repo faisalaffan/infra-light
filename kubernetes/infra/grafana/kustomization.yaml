@@ -7,6 +7,7 @@ configMapGenerator:
   - name: grafana-dashboards-slo
     files:
       - slo-trace-red.json=slo-dashboard.json
+      - mstore-backend.json=mstore-dashboard.json
     options:
       labels:
         grafana_dashboard: "1"
