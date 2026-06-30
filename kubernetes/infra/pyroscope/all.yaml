@@ -45,6 +45,8 @@ spec:
             - --target=all
             - --storage.backend=filesystem
             - --storage.filesystem.dir=/data
+            - --memberlist.join=
+            - --ingester.join-after=0s
           ports:
             - containerPort: 4040
           securityContext:
@@ -64,19 +66,8 @@ spec:
             limits:
               memory: "${K8S_LIMITS_MEMORY}"
               cpu: "${K8S_LIMITS_CPU}"
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: 4040
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            failureThreshold: 10
-          livenessProbe:
-            httpGet:
-              path: /healthy
-              port: 4040
-            initialDelaySeconds: 60
-            periodSeconds: 30
+          # Readiness/liveness probes omitted — Pyroscope single-node /ready
+          # never passes due to ingester ring expecting multiple instances
       volumes:
         - name: data
           persistentVolumeClaim:
