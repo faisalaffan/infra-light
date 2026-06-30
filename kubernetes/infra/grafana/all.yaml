@@ -25,6 +25,10 @@ data:
         url: http://victoriametrics.infra.svc:8428
         access: proxy
         isDefault: true
+        jsonData:
+          exemplarTraceIdDestinations:
+            - name: traceID
+              datasourceUid: tempo
 
       - name: Loki
         type: loki
