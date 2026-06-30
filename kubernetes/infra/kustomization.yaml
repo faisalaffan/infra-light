@@ -6,7 +6,6 @@ resources:
   - postgres
   - mysql
   - nats-expose
-  - nats-ui
   - redis
   - victoriametrics
   - loki
