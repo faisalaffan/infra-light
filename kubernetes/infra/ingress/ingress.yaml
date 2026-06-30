@@ -23,6 +23,7 @@ spec:
         - ${S3_HOSTNAME}
         - ${EXCALIDRAW_HOSTNAME}
         - ${EMQX_DASHBOARD_HOSTNAME}
+        - ${MAILPIT_UI_HOSTNAME}
         - ${NATS_UI_HOSTNAME}
         - ${MONGO_UI_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
@@ -88,6 +89,16 @@ spec:
                 name: redis-commander
                 port:
                   number: 80
+    - host: ${MAILPIT_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mailpit
+                port:
+                  number: 8025
     - host: ${NATS_UI_HOSTNAME}
       http:
         paths:

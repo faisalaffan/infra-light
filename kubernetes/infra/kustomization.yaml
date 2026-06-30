@@ -9,6 +9,7 @@ resources:
   - redis
   - victoriametrics
   - loki
+  - mailpit
   - mongo-ui
   - tempo
   - pyroscope
