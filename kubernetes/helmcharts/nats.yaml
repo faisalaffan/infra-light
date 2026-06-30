@@ -1,0 +1,49 @@
+# =========================================================================
+# NATS — Cloud-native messaging (IoT + internal messaging backbone)
+# Client port 4222 → Tailscale LoadBalancer (nats-faisalaffan.ts.net)
+# Monitoring port 8222 → Ingress (nats.faisalaffan.com)
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: nats
+  namespace: infra
+spec:
+  chart: nats
+  repo: https://nats-io.github.io/k8s/helm/charts
+  targetNamespace: infra
+  valuesContent: |-
+    config:
+      jetstream:
+        enabled: true
+        fileStore:
+          dir: /data
+          pvc:
+            enabled: true
+            size: ${NATS_DATA_SIZE}
+
+    nats:
+      resources:
+        requests:
+          memory: "${K8S_REQUESTS_MEMORY}"
+          cpu: "${K8S_REQUESTS_CPU}"
+        limits:
+          memory: "${NATS_MEMORY_LIMIT}"
+          cpu: "${K8S_LIMITS_CPU}"
+
+    service:
+      type: LoadBalancer
+      loadBalancerClass: tailscale
+      annotations:
+        tailscale.com/hostname: nats-faisalaffan
+
+    monitoring:
+      enabled: true
+
+    container:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault

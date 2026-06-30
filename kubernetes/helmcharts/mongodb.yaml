@@ -1,0 +1,44 @@
+# =========================================================================
+# MongoDB 8.0 — NoSQL document store
+# Client port 27017 → Tailscale LoadBalancer (mongo-faisalaffan.ts.net)
+# Dashboard → Mongo Express via Ingress (mongo.faisalaffan.com)
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: mongodb
+  namespace: infra
+spec:
+  chart: mongodb
+  repo: https://charts.bitnami.com/bitnami
+  targetNamespace: infra
+  valuesContent: |-
+    architecture: standalone
+
+    auth:
+      rootPassword: "${MONGODB_ROOT_PASSWORD}"
+
+    service:
+      type: LoadBalancer
+      loadBalancerClass: tailscale
+      annotations:
+        tailscale.com/hostname: mongo-faisalaffan
+
+    persistence:
+      enabled: true
+      size: ${MONGODB_DATA_SIZE}
+
+    resources:
+      requests:
+        memory: "${K8S_REQUESTS_MEMORY}"
+        cpu: "${K8S_REQUESTS_CPU}"
+      limits:
+        memory: "${MONGODB_MEMORY_LIMIT}"
+        cpu: "${K8S_LIMITS_CPU}"
+
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault

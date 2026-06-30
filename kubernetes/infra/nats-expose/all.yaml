@@ -1,0 +1,20 @@
+# =========================================================================
+# NATS Tailscale exposure — client port 4222 via Tailscale LB
+# NATS deployed via HelmChart (ClusterIP). Service ini expose port via Tailscale.
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-ts
+  namespace: infra
+  annotations:
+    tailscale.com/hostname: nats-faisalaffan
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - port: 4222
+      targetPort: 4222
+      name: nats-client
+  selector:
+    app.kubernetes.io/name: nats

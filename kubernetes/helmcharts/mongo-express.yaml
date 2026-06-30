@@ -1,0 +1,41 @@
+# =========================================================================
+# Mongo Express — Web UI for MongoDB
+# Exposed via Ingress → mongo.faisalaffan.com
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: mongo-express
+  namespace: infra
+spec:
+  chart: mongo-express
+  repo: https://cowboysysop.github.io/charts/
+  targetNamespace: infra
+  valuesContent: |-
+    mongodb:
+      server: mongodb
+      port: 27017
+      auth:
+        enabled: true
+        username: root
+        password: "${MONGODB_ROOT_PASSWORD}"
+        adminDatabase: admin
+
+    service:
+      type: ClusterIP
+      port: 8081
+
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "25m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault

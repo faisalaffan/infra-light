@@ -5,9 +5,11 @@ resources:
   - base
   - postgres
   - mysql
+  - nats-expose
   - redis
   - victoriametrics
   - loki
+  - mongo-ui
   - tempo
   - pyroscope
   - grafana

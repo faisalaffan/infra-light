@@ -23,6 +23,8 @@ spec:
         - ${S3_HOSTNAME}
         - ${EXCALIDRAW_HOSTNAME}
         - ${EMQX_DASHBOARD_HOSTNAME}
+        - ${NATS_UI_HOSTNAME}
+        - ${MONGO_UI_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
       secretName: infra-tls
   rules:
@@ -86,6 +88,26 @@ spec:
                 name: redis-commander
                 port:
                   number: 80
+    - host: ${NATS_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nats
+                port:
+                  number: 8222
+    - host: ${MONGO_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mongo-express
+                port:
+                  number: 8081
     - host: ${EMQX_DASHBOARD_HOSTNAME}
       http:
         paths:
