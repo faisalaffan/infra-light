@@ -44,7 +44,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\",status_code!~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\"}[5m])) * 100",
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\",status_code!~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\"}[5m])) * 100",
           "instant": true,
           "legendFormat": "Availability"
         }
@@ -81,7 +81,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\",status_code=~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\"}[5m])) * 100",
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\",status_code=~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\"}[5m])) * 100",
           "instant": true,
           "legendFormat": "Error Rate"
         }
@@ -118,7 +118,7 @@
       },
       "targets": [
         {
-          "expr": "clamp_min(1 - (sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\",status_code=~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\"}[5m])) * 100 / 0.1), 0) / 100",
+          "expr": "clamp_min(1 - (sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\",status_code=~\"5..\"}[5m])) / sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\"}[5m])) * 100 / 0.1), 0) / 100",
           "instant": true,
           "legendFormat": "Budget"
         }
@@ -148,7 +148,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (status_code)",
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\"}[5m])) by (status_code)",
           "legendFormat": "{{status_code}}"
         }
       ],
@@ -168,7 +168,7 @@
       "options": { "legend": { "displayMode": "list" } },
       "targets": [
         {
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (http_route)",
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\"}[5m])) by (http_route)",
           "legendFormat": "{{http_route}}"
         }
       ],
@@ -197,15 +197,15 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.50, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"mstore-backend\"}[5m])) by (le)) * 1000",
           "legendFormat": "p50"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"mstore-backend\"}[5m])) by (le)) * 1000",
           "legendFormat": "p95"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (le)) * 1000",
+          "expr": "histogram_quantile(0.99, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"mstore-backend\"}[5m])) by (le)) * 1000",
           "legendFormat": "p99"
         }
       ],
@@ -226,7 +226,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"LOCAL/mstore-backend\"}[5m])) by (le, http_route)) * 1000",
+          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_latency_bucket{service_name=~\"mstore-backend\"}[5m])) by (le, http_route)) * 1000",
           "legendFormat": "{{http_route}}"
         }
       ],
@@ -255,7 +255,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"LOCAL/mstore-backend\",status_code=~\"5..\"}[5m])) by (http_route) > 0",
+          "expr": "sum(rate(traces_spanmetrics_calls_total{service_name=~\"mstore-backend\",status_code=~\"5..\"}[5m])) by (http_route) > 0",
           "legendFormat": "{{http_route}} (5xx)"
         }
       ],
@@ -298,7 +298,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "sum(rate(traces_service_graph_request_total{client=~\"LOCAL/mstore-backend\"}[5m])) by (client, server)",
+          "expr": "sum(rate(traces_service_graph_request_total{client=~\"mstore-backend\"}[5m])) by (client, server)",
           "legendFormat": "{{client}} → {{server}}"
         }
       ],
@@ -318,7 +318,7 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "sum(rate(traces_service_graph_request_total{server=~\"LOCAL/mstore-backend\"}[5m])) by (client, server)",
+          "expr": "sum(rate(traces_service_graph_request_total{server=~\"mstore-backend\"}[5m])) by (client, server)",
           "legendFormat": "{{client}} → {{server}}"
         }
       ],
