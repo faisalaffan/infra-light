@@ -25,16 +25,53 @@ data:
         url: http://victoriametrics.infra.svc:8428
         access: proxy
         isDefault: true
+
       - name: Loki
         type: loki
         uid: loki
         url: http://loki.infra.svc:3100
         access: proxy
+        jsonData:
+          derivedFields:
+            - name: traceID
+              matcherRegex: '(?:trace_id|traceId|traceID|traceid)["\s:=]+["\s]*(\w{32,})'
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+            - name: traceID_short
+              matcherRegex: '(?:trace_id|traceId|traceID|traceid)["\s:=]+["\s]*(\w{16,})'
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+            - name: profileId
+              matcherRegex: '(?:profile_id|profileId)["\s:=]+["\s]*(\w+)'
+              url: '$${__value.raw}'
+              datasourceUid: pyroscope
+
       - name: Tempo
         type: tempo
         uid: tempo
         url: http://tempo.infra.svc:3200
         access: proxy
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            tags:
+              - key: service.name
+                value: service_name
+              - key: service.name
+                value: job
+          tracesToMetrics:
+            datasourceUid: victoriametrics
+            queries:
+              - name: "Request Rate"
+                query: 'sum(rate(http_requests_total{service_name="$${__span.tags["service.name"]}"}[5m]))'
+          tracesToProfiles:
+            datasourceUid: pyroscope
+            tags:
+              - key: service.name
+                value: service_name
+
       - name: Pyroscope
         type: grafana-pyroscope-datasource
         uid: pyroscope
