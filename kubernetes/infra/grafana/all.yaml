@@ -44,8 +44,9 @@ data:
               url: '$${__value.raw}'
               datasourceUid: tempo
             - name: profileId
-              matcherRegex: '(?:profile_id|profileId)["\s:=]+["\s]*(\w+)'
+              matcherRegex: '"profile_id"\s*:\s*"([0-9a-fA-F-]{8,})"'
               url: '$${__value.raw}'
+              urlDisplayLabel: 'View Profile in Pyroscope'
               datasourceUid: pyroscope
 
       - name: Tempo
