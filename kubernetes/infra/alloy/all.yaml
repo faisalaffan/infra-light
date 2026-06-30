@@ -6,6 +6,59 @@ metadata:
 data:
   config.alloy: |
     logging { level = "info" }
+
+    // ── OTLP Receiver (gRPC + HTTP) ──────────────────────────
+    otelcol.receiver.otlp "default" {
+      grpc { endpoint = "0.0.0.0:4317" }
+      http { endpoint = "0.0.0.0:4318" }
+
+      output {
+        metrics  = [otelcol.processor.batch.metrics.input]
+        logs     = [otelcol.processor.batch.logs.input]
+        traces   = [otelcol.processor.batch.traces.input]
+      }
+    }
+
+    // ── Batch processors (reduce backend pressure) ───────────
+    otelcol.processor.batch "metrics" {
+      output { metrics = [otelcol.exporter.prometheus.default.input] }
+    }
+    otelcol.processor.batch "logs" {
+      output { logs = [otelcol.exporter.loki.default.input] }
+    }
+    otelcol.processor.batch "traces" {
+      output { traces = [otelcol.exporter.otlp.tempo.input] }
+    }
+
+    // ── Metrics → VictoriaMetrics ────────────────────────────
+    otelcol.exporter.prometheus "default" {
+      forward_to = [prometheus.remote_write.default.receiver]
+    }
+    prometheus.remote_write "default" {
+      endpoint {
+        url = "http://victoriametrics.infra.svc:8428/api/v1/write"
+      }
+    }
+
+    // ── Logs → Loki ──────────────────────────────────────────
+    otelcol.exporter.loki "default" {
+      forward_to = [loki.write.default.receiver]
+    }
+    loki.write "default" {
+      endpoint {
+        url = "http://loki.infra.svc:3100/loki/api/v1/push"
+      }
+    }
+
+    // ── Traces → Tempo ───────────────────────────────────────
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "tempo.infra.svc:4317"
+        tls { insecure = true }
+      }
+    }
+
+    // ── Infra scraping (keep existing) ────────────────────────
     prometheus.scrape "infra" {
       targets = [
         {"__address__" = "victoriametrics.infra.svc:8428", "job" = "victoriametrics"},
@@ -13,11 +66,6 @@ data:
       ]
       forward_to = [prometheus.remote_write.default.receiver]
       scrape_interval = "15s"
-    }
-    prometheus.remote_write "default" {
-      endpoint {
-        url = "http://victoriametrics.infra.svc:8428/api/v1/write"
-      }
     }
 ---
 apiVersion: apps/v1
@@ -51,6 +99,11 @@ spec:
               type: RuntimeDefault
           ports:
             - containerPort: 12345
+              name: http
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
           volumeMounts:
             - name: config
               mountPath: /etc/alloy
@@ -65,3 +118,23 @@ spec:
         - name: config
           configMap:
             name: alloy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy-otel
+  namespace: infra
+  annotations:
+    tailscale.com/hostname: otel-faisalaffan
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - port: 4317
+      targetPort: 4317
+      name: otlp-grpc
+    - port: 4318
+      targetPort: 4318
+      name: otlp-http
+  selector:
+    app: alloy
