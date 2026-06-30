@@ -3,3 +3,13 @@ kind: Kustomization
 namespace: infra
 resources:
   - all.yaml
+configMapGenerator:
+  - name: grafana-dashboards-slo
+    files:
+      - slo-trace-red.json=slo-dashboard.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+  - name: grafana-dashboards-provider
+    files:
+      - dashboards.yaml=dashboards-provider.yaml

@@ -133,6 +133,10 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards-slo
+              mountPath: /etc/grafana/provisioning/dashboards/slo
             - name: data
               mountPath: /var/lib/grafana
           resources:
@@ -146,6 +150,12 @@ spec:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: dashboards-slo
+          configMap:
+            name: grafana-dashboards-slo
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data
