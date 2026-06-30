@@ -19,12 +19,43 @@ data:
   config.yaml: |
     server:
       http_listen_port: 3200
+
+    memberlist:
+      bind_port: 7946
+      join_members:
+        - tempo.infra.svc:7946
+
     distributor:
       receivers:
         otlp:
           protocols:
             grpc:
               endpoint: "0.0.0.0:4317"
+
+    metrics_generator:
+      ring:
+        kvstore:
+          store: memberlist
+      processor:
+        span_metrics:
+          dimensions:
+            - service.name
+            - http.method
+            - http.status_code
+            - http.route
+        service_graphs:
+          dimensions:
+            - service.name
+      registry:
+        external_labels:
+          source: tempo
+      storage:
+        path: /var/tempo/generator/wal
+        remote_write:
+          - url: http://victoriametrics.infra.svc:8428/api/v1/write
+            send_exemplars: true
+            send_native_histograms: true
+
     storage:
       trace:
         backend: local
@@ -32,6 +63,11 @@ data:
           path: /var/tempo/traces
         wal:
           path: /var/tempo/wal
+
+    overrides:
+      defaults:
+        metrics_generator:
+          processors: [span-metrics, service-graphs]
 ---
 apiVersion: v1
 kind: Service
@@ -47,6 +83,9 @@ spec:
     - port: 4317
       targetPort: 4317
       name: otlp-grpc
+    - port: 7946
+      targetPort: 7946
+      name: memberlist
   selector:
     app: tempo
 ---
@@ -71,6 +110,7 @@ spec:
           ports:
             - containerPort: 3200
             - containerPort: 4317
+            - containerPort: 7946
           args: ["-config.file=/etc/tempo/config.yaml"]
           securityContext:
             runAsNonRoot: true
