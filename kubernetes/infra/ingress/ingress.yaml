@@ -95,7 +95,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: nats
+                name: nats-headless
                 port:
                   number: 8222
     - host: ${MONGO_UI_HOSTNAME}
