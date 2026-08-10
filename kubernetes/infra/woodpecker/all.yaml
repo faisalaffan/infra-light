@@ -1,0 +1,285 @@
+# =========================================================================
+# Woodpecker CI — self-hosted CI/CD (Gitea integration)
+# Web: port 8000 (ClusterIP internal) → Ingress (${WOODPECKER_SERVER_HOST})
+# Agents: gRPC port 9000; DB: Postgres; agents run on Kubernetes backend
+# =========================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: woodpecker-data
+  namespace: infra
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: ${WOODPECKER_DATA_SIZE}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: woodpecker-server
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+    - port: 9000
+      targetPort: 9000
+      name: grpc
+  selector:
+    app: woodpecker-server
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: woodpecker-server-config
+  namespace: infra
+data:
+  WOODPECKER_HOST: "https://${WOODPECKER_SERVER_HOST}"
+  WOODPECKER_OPEN: "true"
+  WOODPECKER_ADMIN: "${WOODPECKER_ADMIN_USER}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: woodpecker-agent-config
+  namespace: infra
+data:
+  WOODPECKER_SERVER: woodpecker-server.infra.svc.cluster.local:9000
+  WOODPECKER_BACKEND: kubernetes
+  WOODPECKER_BACKEND_K8S_NAMESPACE: infra
+  WOODPECKER_BACKEND_K8S_STORAGE_CLASS: local-path
+  WOODPECKER_BACKEND_K8S_STORAGE_RWX: "false"
+  WOODPECKER_BACKEND_K8S_POD_LABELS: "managed-by=woodpecker-ci"
+  WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS: "sidecar.istio.io/inject=false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: woodpecker-server
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: woodpecker-server
+  template:
+    metadata:
+      labels:
+        app: woodpecker-server
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: woodpecker-server
+          image: woodpeckerci/woodpecker-server:v${WOODPECKER_VERSION}
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 9000
+              name: grpc
+          env:
+            - name: WOODPECKER_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-server-config
+                  key: WOODPECKER_HOST
+            - name: WOODPECKER_OPEN
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-server-config
+                  key: WOODPECKER_OPEN
+            - name: WOODPECKER_ADMIN
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-server-config
+                  key: WOODPECKER_ADMIN
+            - name: WOODPECKER_DATABASE_DRIVER
+              value: "postgres"
+            - name: WOODPECKER_DATABASE_DATASOURCE
+              value: "postgres://${WOODPECKER_DB_USER}:$(WOODPECKER_DATABASE_PASSWORD)@${WOODPECKER_DB_HOST}:${WOODPECKER_DB_PORT}/${WOODPECKER_DB_NAME}?sslmode=disable"
+            - name: WOODPECKER_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: WOODPECKER_DB_PASSWORD
+            - name: WOODPECKER_GITEA
+              value: "true"
+            - name: WOODPECKER_GITEA_URL
+              value: "https://${GITEA_DOMAIN}"
+            - name: WOODPECKER_GITEA_CLIENT
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: WOODPECKER_GITEA_CLIENT
+            - name: WOODPECKER_GITEA_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: WOODPECKER_GITEA_SECRET
+            - name: WOODPECKER_AGENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: WOODPECKER_AGENT_SECRET
+            - name: WOODPECKER_VOLUME
+              value: "/var/lib/woodpecker"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/woodpecker
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: woodpecker-data
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: woodpecker-agent
+  namespace: infra
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "secrets", "services", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: woodpecker-agent
+  namespace: infra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: woodpecker-agent
+subjects:
+  - kind: ServiceAccount
+    name: woodpecker-agent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: woodpecker-agent
+  namespace: infra
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: woodpecker-agent
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: woodpecker-agent
+  template:
+    metadata:
+      labels:
+        app: woodpecker-agent
+    spec:
+      serviceAccountName: woodpecker-agent
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: woodpecker-agent
+          image: woodpeckerci/woodpecker-agent:v${WOODPECKER_VERSION}
+          ports:
+            - containerPort: 9000
+              name: grpc
+          env:
+            - name: WOODPECKER_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_SERVER
+            - name: WOODPECKER_BACKEND
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND
+            - name: WOODPECKER_BACKEND_K8S_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND_K8S_NAMESPACE
+            - name: WOODPECKER_BACKEND_K8S_STORAGE_CLASS
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND_K8S_STORAGE_CLASS
+            - name: WOODPECKER_BACKEND_K8S_STORAGE_RWX
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND_K8S_STORAGE_RWX
+            - name: WOODPECKER_BACKEND_K8S_POD_LABELS
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND_K8S_POD_LABELS
+            - name: WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: woodpecker-agent-config
+                  key: WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS
+            - name: WOODPECKER_AGENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: WOODPECKER_AGENT_SECRET
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

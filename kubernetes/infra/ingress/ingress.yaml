@@ -27,6 +27,8 @@ spec:
         - ${NATS_UI_HOSTNAME}
         - ${MONGO_UI_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
+        - ${GITEA_DOMAIN}
+        - ${WOODPECKER_SERVER_HOST}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -129,3 +131,23 @@ spec:
                 name: emqx
                 port:
                   number: 18083
+    - host: ${GITEA_DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gitea
+                port:
+                  number: 3000
+    - host: ${WOODPECKER_SERVER_HOST}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: woodpecker-server
+                port:
+                  number: 8000

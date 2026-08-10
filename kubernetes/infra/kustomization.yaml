@@ -19,5 +19,7 @@ resources:
   - cloudbeaver
   - emqx
   - excalidraw
+  - gitea
+  - woodpecker
   - ingress
   - networkpolicy
