@@ -53,8 +53,8 @@ data:
   WOODPECKER_BACKEND_K8S_NAMESPACE: infra
   WOODPECKER_BACKEND_K8S_STORAGE_CLASS: local-path
   WOODPECKER_BACKEND_K8S_STORAGE_RWX: "false"
-  WOODPECKER_BACKEND_K8S_POD_LABELS: "managed-by=woodpecker-ci"
-  WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS: "sidecar.istio.io/inject=false"
+  WOODPECKER_BACKEND_K8S_POD_LABELS: "{\"managed-by\":\"woodpecker-ci\"}"
+  WOODPECKER_BACKEND_K8S_POD_ANNOTATIONS: "{\"sidecar.istio.io/inject\":\"false\"}"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -103,12 +103,7 @@ spec:
             - name: WOODPECKER_DATABASE_DRIVER
               value: "postgres"
             - name: WOODPECKER_DATABASE_DATASOURCE
-              value: "postgres://${WOODPECKER_DB_USER}:$(WOODPECKER_DATABASE_PASSWORD)@${WOODPECKER_DB_HOST}:${WOODPECKER_DB_PORT}/${WOODPECKER_DB_NAME}?sslmode=disable"
-            - name: WOODPECKER_DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: infra-secrets
-                  key: WOODPECKER_DB_PASSWORD
+              value: "postgres://${WOODPECKER_DB_USER}:${WOODPECKER_DB_PASSWORD}@${WOODPECKER_DB_HOST}:${WOODPECKER_DB_PORT}/${WOODPECKER_DB_NAME}?sslmode=disable"
             - name: WOODPECKER_GITEA
               value: "true"
             - name: WOODPECKER_GITEA_URL
