@@ -346,6 +346,8 @@ deploy_kustomize() {
     export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_API_TS_HOSTNAME="${RESOLVA_API_TS_HOSTNAME:-resolva-api-faisalaffan}"
+    export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_FRONTEND_TS_HOSTNAME="${RESOLVA_FRONTEND_TS_HOSTNAME:-resolva-faisalaffan}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors
@@ -761,6 +763,7 @@ print_summary() {
     echo "    HashiCorp Vault: vault.infra:8200"
     echo "    Docker Registry: registry.infra:80 (UI)"
     echo "    Resolva API:     reconciliation-backend-svc.infra:3020"
+    echo "    Resolva UI:      reconciliation-frontend-svc.infra:5454"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""

@@ -39,6 +39,7 @@ spec:
         - ${VAULT_UI_HOSTNAME}
         - ${REGISTRY_UI_HOSTNAME}
         - ${RESOLVA_API_HOSTNAME}
+        - ${RESOLVA_FRONTEND_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -191,5 +192,15 @@ spec:
                 name: reconciliation-backend-svc
                 port:
                   number: 3020
+    - host: ${RESOLVA_FRONTEND_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-frontend-svc
+                port:
+                  number: 5454
 
 

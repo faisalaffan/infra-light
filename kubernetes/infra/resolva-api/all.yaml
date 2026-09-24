@@ -77,8 +77,8 @@ spec:
         vault.hashicorp.com/agent-inject-secret-.env: "secret/data/reconciliation/backend"
         vault.hashicorp.com/agent-inject-template-.env: |
           {{- with secret "secret/data/reconciliation/backend" -}}
-          {{- range $key, $value := .Data.data }}
-          {{ $key }}={{ $value }}
+          {{- range \$key, \$value := .Data.data }}
+          {{ \$key }}={{ \$value }}
           {{- end }}
           {{- end -}}
     spec:
