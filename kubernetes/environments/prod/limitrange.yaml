@@ -27,3 +27,19 @@ spec:
         cpu: "200m"
         memory: 256Mi
       type: Container
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: resolva
+spec:
+  limits:
+    - default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: "200m"
+        memory: 256Mi
+      type: Container
+

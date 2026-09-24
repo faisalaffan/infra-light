@@ -22,7 +22,6 @@ resources:
   - excalidraw
   - woodpecker
   - docker-registry
-  - resolva-api
-  - resolva-frontend
   - ingress
   - networkpolicy
+

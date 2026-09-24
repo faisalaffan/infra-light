@@ -51,3 +51,31 @@ roleRef:
   kind: Role
   name: woodpecker-deployer
   apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: woodpecker-deployer
+  namespace: resolva
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: woodpecker-deployer-binding
+  namespace: resolva
+subjects:
+  - kind: ServiceAccount
+    name: woodpecker-agent
+    namespace: infra
+roleRef:
+  kind: Role
+  name: woodpecker-deployer
+  apiGroup: rbac.authorization.k8s.io
+

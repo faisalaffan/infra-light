@@ -1,0 +1,227 @@
+# =========================================================================
+# Resolva Production Workloads
+# Namespace: resolva
+# =========================================================================
+
+# --- Resolva Backend (API) ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: reconciliation-backend-sa
+  namespace: resolva
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconciliation-backend-svc
+  namespace: resolva
+  labels:
+    app: reconciliation-backend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3020
+      targetPort: 3020
+      protocol: TCP
+  selector:
+    app: reconciliation-backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resolva-api-ts
+  namespace: resolva
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "resolva-api-faisalaffan"
+  labels:
+    app: reconciliation-backend
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3020
+      protocol: TCP
+    - name: http-3020
+      port: 3020
+      targetPort: 3020
+      protocol: TCP
+  selector:
+    app: reconciliation-backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reconciliation-backend
+  namespace: resolva
+  labels:
+    app: reconciliation-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reconciliation-backend
+  template:
+    metadata:
+      labels:
+        app: reconciliation-backend
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "resolva-prod-role"
+        vault.hashicorp.com/agent-inject-secret-.env: "secret/data/resolva/prod"
+        vault.hashicorp.com/agent-inject-template-.env: |
+          {{- with secret "secret/data/resolva/prod" -}}
+          {{- range $key, $value := .Data.data }}
+          {{ $key }}={{ $value }}
+          {{- end }}
+          {{- end -}}
+
+    spec:
+      serviceAccountName: reconciliation-backend-sa
+      containers:
+        - name: backend
+          image: localhost:5000/reconciliation-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3020
+              protocol: TCP
+          env:
+            - name: SYSTEM_MODE
+              value: "PROD"
+            - name: VAULT_SECRETS_FILE
+              value: "/vault/secrets/.env"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# --- Resolva Frontend ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconciliation-frontend-svc
+  namespace: resolva
+  labels:
+    app: reconciliation-frontend
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5454
+      targetPort: 5454
+      protocol: TCP
+  selector:
+    app: reconciliation-frontend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resolva-frontend-ts
+  namespace: resolva
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "resolva-faisalaffan"
+  labels:
+    app: reconciliation-frontend
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5454
+      protocol: TCP
+    - name: http-5454
+      port: 5454
+      targetPort: 5454
+      protocol: TCP
+  selector:
+    app: reconciliation-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reconciliation-frontend
+  namespace: resolva
+  labels:
+    app: reconciliation-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reconciliation-frontend
+  template:
+    metadata:
+      labels:
+        app: reconciliation-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: localhost:5000/reconciliation-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5454
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "5454"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: API_PROXY_TARGET
+              value: "http://reconciliation-backend-svc.resolva.svc.cluster.local:3020/api/**"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# --- Resolva Production Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: resolva-ingress
+  namespace: resolva
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - resolva.faisalaffan.com
+        - resolva-api.faisalaffan.com
+      secretName: resolva-prod-tls
+  rules:
+    - host: resolva.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-frontend-svc
+                port:
+                  number: 5454
+    - host: resolva-api.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-backend-svc
+                port:
+                  number: 3020

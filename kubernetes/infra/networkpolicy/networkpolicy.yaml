@@ -28,3 +28,14 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tailscale
+        - namespaceSelector:
+            matchExpressions:
+              - key: environment
+                operator: In
+                values: ["production", "development"]
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: ["resolva", "resolva-dev", "ewallet", "ewallet-dev", "wasteco", "wasteco-dev", "geostack"]
+
