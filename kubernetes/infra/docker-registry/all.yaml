@@ -1,0 +1,166 @@
+# =========================================================================
+# Private Docker Registry & Modern Web UI Dashboard
+# Registry backend: port 5000 (with hostPort 5000 for zero-config local push)
+# Registry UI: port 80 → Ingress (${REGISTRY_UI_HOSTNAME} / registry.faisalaffan.com)
+# =========================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: docker-registry-data
+  namespace: infra
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: ${REGISTRY_DATA_SIZE}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: docker-registry
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry
+  namespace: infra
+  labels:
+    app: docker-registry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: docker-registry
+  template:
+    metadata:
+      labels:
+        app: docker-registry
+    spec:
+      containers:
+        - name: registry
+          image: registry:2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: REGISTRY_STORAGE_DELETE_ENABLED
+              value: "true"
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: "/var/lib/registry"
+          ports:
+            - name: registry
+              containerPort: 5000
+              hostPort: 5000
+              protocol: TCP
+          volumeMounts:
+            - name: registry-storage
+              mountPath: /var/lib/registry
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: registry-storage
+          persistentVolumeClaim:
+            claimName: docker-registry-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-ui
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: docker-registry-ui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry-ui
+  namespace: infra
+  labels:
+    app: docker-registry-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-registry-ui
+  template:
+    metadata:
+      labels:
+        app: docker-registry-ui
+    spec:
+      containers:
+        - name: ui
+          image: joxit/docker-registry-ui:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: REGISTRY_URL
+              value: "http://docker-registry.infra.svc.cluster.local:5000"
+            - name: REGISTRY_TITLE
+              value: "Faisal Affan — Private Docker Registry"
+            - name: DELETE_IMAGES
+              value: "true"
+            - name: SHOW_CONTENT_DIGEST
+              value: "true"
+            - name: NGINX_PROXY_PASS_URL
+              value: "http://docker-registry.infra.svc.cluster.local:5000"
+            - name: SINGLE_REGISTRY
+              value: "true"
+            - name: PULL_URL
+              value: "localhost:5000"
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20

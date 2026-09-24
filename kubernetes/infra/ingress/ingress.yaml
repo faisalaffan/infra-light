@@ -37,6 +37,7 @@ spec:
         - ${WOODPECKER_SERVER_HOST}
         - ${REDPANDA_CONSOLE_HOSTNAME}
         - ${VAULT_UI_HOSTNAME}
+        - ${REGISTRY_UI_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -169,5 +170,15 @@ spec:
                 name: vault
                 port:
                   number: 8200
+    - host: ${REGISTRY_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docker-registry-ui
+                port:
+                  number: 80
 
 

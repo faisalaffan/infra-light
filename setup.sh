@@ -343,6 +343,7 @@ deploy_kustomize() {
     export REDIS_UI_HOSTNAME="${REDIS_UI_HOSTNAME:-redis-ui.${DOMAIN:-faisalaffan.com}}"
     export REDPANDA_CONSOLE_HOSTNAME="${REDPANDA_CONSOLE_HOSTNAME:-redpanda.${DOMAIN:-faisalaffan.com}}"
     export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN:-faisalaffan.com}}"
+    export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors
@@ -756,6 +757,7 @@ print_summary() {
     echo "    Pyroscope:       pyroscope.infra:4040"
     echo "    Grafana:         grafana.infra:3000"
     echo "    HashiCorp Vault: vault.infra:8200"
+    echo "    Docker Registry: registry.infra:80 (UI)"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""
