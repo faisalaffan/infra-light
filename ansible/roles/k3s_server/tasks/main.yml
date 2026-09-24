@@ -46,12 +46,17 @@
     comment: metrics-server → kubelet
   notify: persist iptables
 
-- name: Configure k3s — add cni0 IP to kubelet node-ip
+- name: Configure k3s — add tls-san and disable default traefik/servicelb
   copy:
     dest: /etc/rancher/k3s/config.yaml
     content: |
-      kubelet-arg:
-        - "node-ip={{ tailscale_ipv4 }},{{ cni0_ip.stdout }}"
+      disable:
+        - traefik
+        - servicelb
+      tls-san:
+        - "{{ tailscale_ipv4 }}"
+        - "{{ ansible_facts.hostname }}"
+        - "127.0.0.1"
     owner: root
     mode: 0644
   notify: restart k3s

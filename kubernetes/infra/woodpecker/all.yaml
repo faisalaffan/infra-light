@@ -104,20 +104,18 @@ spec:
               value: "postgres"
             - name: WOODPECKER_DATABASE_DATASOURCE
               value: "postgres://${WOODPECKER_DB_USER}:${WOODPECKER_DB_PASSWORD}@${WOODPECKER_DB_HOST}:${WOODPECKER_DB_PORT}/${WOODPECKER_DB_NAME}?sslmode=disable"
-            - name: WOODPECKER_GITEA
+            - name: WOODPECKER_GITHUB
               value: "true"
-            - name: WOODPECKER_GITEA_URL
-              value: "https://${GITEA_DOMAIN}"
-            - name: WOODPECKER_GITEA_CLIENT
+            - name: WOODPECKER_GITHUB_CLIENT
               valueFrom:
                 secretKeyRef:
                   name: infra-secrets
-                  key: WOODPECKER_GITEA_CLIENT
-            - name: WOODPECKER_GITEA_SECRET
+                  key: WOODPECKER_GITHUB_CLIENT
+            - name: WOODPECKER_GITHUB_SECRET
               valueFrom:
                 secretKeyRef:
                   name: infra-secrets
-                  key: WOODPECKER_GITEA_SECRET
+                  key: WOODPECKER_GITHUB_SECRET
             - name: WOODPECKER_AGENT_SECRET
               valueFrom:
                 secretKeyRef:

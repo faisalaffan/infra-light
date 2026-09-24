@@ -1,0 +1,75 @@
+# =========================================================================
+# Redpanda — High-performance Kafka-compatible streaming data platform
+# Kafka Broker: port 9093 (internal), port 9094 (Tailscale external)
+# Schema Registry: port 8081
+# Admin API: port 9644
+# Console (Web UI): port 8080 → Ingress (${REDPANDA_CONSOLE_HOSTNAME})
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: redpanda
+  namespace: infra
+spec:
+  chart: redpanda
+  repo: https://charts.redpanda.com
+  targetNamespace: infra
+  valuesContent: |-
+    statefulset:
+      replicas: ${REDPANDA_REPLICAS}
+      podAntiAffinity:
+        type: soft
+
+    storage:
+      persistentVolume:
+        enabled: true
+        size: ${REDPANDA_DATA_SIZE}
+        storageClass: "local-path"
+
+    resources:
+      cpu:
+        cores: ${REDPANDA_CPU_LIMIT}
+        overprovisioned: true
+      memory:
+        container:
+          min: ${REDPANDA_MEMORY_REQUEST}
+          max: ${REDPANDA_MEMORY_LIMIT}
+
+    tls:
+      enabled: false
+
+    external:
+      enabled: true
+      service:
+        enabled: false
+      addresses:
+        - "${TAILSCALE_REDPANDA_IP:-100.101.114.48}"
+
+    listeners:
+      kafka:
+        port: 9093
+        tls:
+          enabled: false
+        external:
+          default:
+            port: 9094
+            advertisedPorts:
+              - 9094
+            tls:
+              enabled: false
+
+    tuning:
+      tune_aio_events: false
+
+    console:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+    monitoring:
+      enabled: false

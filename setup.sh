@@ -208,8 +208,12 @@ bootstrap_k3s() {
     fi
 
     log "Bootstrapping Tailscale + K3s (OS-level)..."
-    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "Tailscale playbook had errors — continuing with K3s"
-    ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
+    if command -v k3s &>/dev/null && systemctl is-active --quiet k3s 2>/dev/null; then
+        log "Tailscale and K3s are already installed and running ✓"
+    else
+        ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "Tailscale playbook had errors — continuing with K3s"
+        ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
+    fi
 
     fix_kubeconfig
     fix_k3s_perms
@@ -337,6 +341,8 @@ deploy_kustomize() {
     export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN:-faisalaffan.com}}"
     export EXCALIDRAW_HOSTNAME="${EXCALIDRAW_HOSTNAME:-excalidraw.${DOMAIN:-faisalaffan.com}}"
     export REDIS_UI_HOSTNAME="${REDIS_UI_HOSTNAME:-redis-ui.${DOMAIN:-faisalaffan.com}}"
+    export REDPANDA_CONSOLE_HOSTNAME="${REDPANDA_CONSOLE_HOSTNAME:-redpanda.${DOMAIN:-faisalaffan.com}}"
+    export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN:-faisalaffan.com}}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors
@@ -398,11 +404,103 @@ fix_coredns_force_tcp() {
 }
 
 # ------------------------------------------------------------------
+# HashiCorp Vault — Init, Unseal & Auto-configure (K8s Auth + KV v2)
+# ------------------------------------------------------------------
+configure_hashicorp_vault() {
+    log "Configuring HashiCorp Vault..."
+
+    # 1. Pastikan pod vault-0 ada dan ready/running
+    if ! kubectl get pod vault-0 -n infra &>/dev/null; then
+        warn "vault-0 pod not found in namespace infra — skipping Vault auto-configuration"
+        return
+    fi
+
+    log "Waiting for vault-0 pod to be running..."
+    kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 -n infra --timeout=120s 2>/dev/null || true
+
+    local sealed_file="$SCRIPT_DIR/SEALED_TOKEN_VAULT.md"
+    local vault_status_out
+    vault_status_out=$(kubectl exec -n infra vault-0 -c vault -- vault status 2>&1 || true)
+
+    # Inisialisasi jika belum di-init
+    if echo "$vault_status_out" | grep -qi "Initialized.*false"; then
+        log "Initializing Vault..."
+        local init_out
+        init_out=$(kubectl exec -n infra vault-0 -c vault -- vault operator init 2>&1)
+        echo "$init_out" > "$sealed_file"
+        chmod 600 "$sealed_file"
+        log "Vault initialized! Keys and Root Token saved to $sealed_file"
+        vault_status_out=$(kubectl exec -n infra vault-0 -c vault -- vault status 2>&1 || true)
+    fi
+
+    # Unseal jika tersegel (sealed)
+    if echo "$vault_status_out" | grep -qi "Sealed.*true"; then
+        log "Vault is sealed. Attempting unseal using $sealed_file..."
+        if [ -f "$sealed_file" ]; then
+            local keys
+            keys=$(grep "Unseal Key" "$sealed_file" | awk '{print $NF}' | head -3)
+            for k in $keys; do
+                kubectl exec -n infra vault-0 -c vault -- vault operator unseal "$k" >/dev/null 2>&1 || true
+            done
+            log "Vault unseal keys submitted ✓"
+        else
+            warn "Cannot unseal Vault: $sealed_file not found"
+            return
+        fi
+    fi
+
+    # Ambil root token
+    local root_token="${VAULT_ROOT_TOKEN:-}"
+    if [ -z "$root_token" ] && [ -f "$sealed_file" ]; then
+        root_token=$(grep -i "Initial Root Token:" "$sealed_file" | awk '{print $NF}' | tr -d '\r\n')
+    fi
+
+    if [ -z "$root_token" ]; then
+        warn "Root token not found. Skipping Kubernetes Auth & KV setup in Vault"
+        return
+    fi
+
+    # 3. Enable & configure Kubernetes Auth
+    local auth_list
+    auth_list=$(kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault auth list 2>/dev/null || true)
+    if ! echo "$auth_list" | grep -q "kubernetes/"; then
+        log "Enabling Kubernetes Auth in Vault..."
+        kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault auth enable kubernetes >/dev/null 2>&1 || true
+    fi
+
+    log "Configuring Kubernetes Auth host endpoint..."
+    kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault write auth/kubernetes/config \
+        kubernetes_host="https://kubernetes.default.svc" >/dev/null 2>&1 || true
+
+    # 4. Enable KV-v2 secrets engine di secret/ jika belum aktif
+    local secrets_list
+    secrets_list=$(kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault secrets list 2>/dev/null || true)
+    if ! echo "$secrets_list" | grep -q "secret/"; then
+        log "Enabling kv-v2 secret engine at secret/..."
+        kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault secrets enable -path=secret kv-v2 >/dev/null 2>&1 || true
+    fi
+
+    log "HashiCorp Vault configured ✓ (Kubernetes Auth & Secret Engine ready)"
+}
+
+# ------------------------------------------------------------------
 # Full deploy: HelmCharts (third-party) → Kustomize (first-party)
 # Idempotent — bisa dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_all() {
     log "=== Deploying all infrastructure ==="
+
+    # Wait for K3s API server to be ready (after restart)
+    log "Waiting for K3s API server to be ready..."
+    local retries=30
+    while ! kubectl get nodes &>/dev/null; do
+        sleep 2
+        retries=$((retries - 1))
+        if [ $retries -le 0 ]; then
+            err "Timed out waiting for K3s API server"
+        fi
+    done
+    log "K3s API server is ready ✓"
 
     # 0. Fix CoreDNS — force TCP DNS (sebelum HelmCharts yg butuh DNS)
     fix_coredns_force_tcp
@@ -420,6 +518,9 @@ deploy_all() {
 
     # 4. First-party: all infra services via Kustomize
     deploy_kustomize
+
+    # 5. HashiCorp Vault: Unseal & configure Auth + Secrets
+    configure_hashicorp_vault
 
     log "=== Deploy complete ==="
     kubectl get pods,svc -n infra -o wide 2>/dev/null || true
@@ -497,6 +598,11 @@ fix_kubeconfig() {
         cp "$kubeconfig" "$default_kubeconfig"
         chmod 600 "$default_kubeconfig"
         log "Kubeconfig ready: $default_kubeconfig"
+    fi
+
+    # Pastikan default_kubeconfig selalu mengarah ke 127.0.0.1 untuk akses lokal di VPS
+    if [ -f "$default_kubeconfig" ]; then
+        sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|' "$default_kubeconfig"
     fi
 
     # Set KUBECONFIG permanent di .bashrc
@@ -649,6 +755,7 @@ print_summary() {
     echo "    Tempo:           tempo.infra:3200"
     echo "    Pyroscope:       pyroscope.infra:4040"
     echo "    Grafana:         grafana.infra:3000"
+    echo "    HashiCorp Vault: vault.infra:8200"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""
@@ -679,7 +786,7 @@ main() {
         SUDO_SKIP=true
     fi
 
-    if [ "${SUDO_SKIP:-false}" = false ] && ! sudo -n true 2>/dev/null; then
+    if [ "${SUDO_SKIP:-false}" = false ] && [ -z "${SUDO_PASS:-}" ]; then
         read -sp "[sudo] password for $USER: " SUDO_PASS
         echo
         if echo "$SUDO_PASS" | sudo -S true 2>/dev/null; then

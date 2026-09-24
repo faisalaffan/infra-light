@@ -6,6 +6,7 @@ resources:
   - postgres
   - mysql
   - nats-expose
+  - redpanda-expose
   - redis
   - victoriametrics
   - loki
@@ -19,7 +20,6 @@ resources:
   - cloudbeaver
   - emqx
   - excalidraw
-  - gitea
   - woodpecker
   - ingress
   - networkpolicy

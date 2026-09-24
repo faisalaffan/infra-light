@@ -120,6 +120,10 @@ docker run -d --name postgres \
 | Tempo | tempo.infra | 3200 |
 | Pyroscope | pyroscope.infra | 4040 |
 | CloudBeaver | cloudbeaver.infra | 8978 |
+| Redpanda (Kafka) | redpanda.infra | 9093 |
+| Redpanda Console | redpanda.faisalaffan.com | 8080 |
+| HashiCorp Vault UI | vault.faisalaffan.com | 8200 |
+| HashiCorp Vault (Tailscale) | vault-faisalaffan.ts.net | 8200 |
 
 ## Contributing
 

@@ -1,0 +1,29 @@
+# =========================================================================
+# Redpanda Tailscale exposure — Kafka client, Schema Registry & Admin ports via Tailscale LB
+# Redpanda deployed via HelmChart. Service ini expose port via Tailscale.
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-ts
+  namespace: infra
+  annotations:
+    tailscale.com/hostname: redpanda-faisalaffan
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - port: 9094
+      targetPort: 9094
+      name: kafka
+    - port: 9093
+      targetPort: 9093
+      name: kafka-internal
+    - port: 8081
+      targetPort: 8081
+      name: schema-registry
+    - port: 9644
+      targetPort: 9644
+      name: admin
+  selector:
+    app.kubernetes.io/name: redpanda

@@ -13,6 +13,13 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: '"${INGRESS_PROXY_BODY_SIZE}"'
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "0"
 spec:
   ingressClassName: nginx
   tls:
@@ -27,8 +34,9 @@ spec:
         - ${NATS_UI_HOSTNAME}
         - ${MONGO_UI_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
-        - ${GITEA_DOMAIN}
         - ${WOODPECKER_SERVER_HOST}
+        - ${REDPANDA_CONSOLE_HOSTNAME}
+        - ${VAULT_UI_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -131,16 +139,6 @@ spec:
                 name: emqx
                 port:
                   number: 18083
-    - host: ${GITEA_DOMAIN}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: gitea
-                port:
-                  number: 3000
     - host: ${WOODPECKER_SERVER_HOST}
       http:
         paths:
@@ -151,3 +149,25 @@ spec:
                 name: woodpecker-server
                 port:
                   number: 8000
+    - host: ${REDPANDA_CONSOLE_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: redpanda-console
+                port:
+                  number: 8080
+    - host: ${VAULT_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vault
+                port:
+                  number: 8200
+
+

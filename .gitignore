@@ -10,3 +10,6 @@ backups/
 **/vault.yml
 !**/vault.yml.example
 __pycache__/
+SEALED_TOKEN_VAULT.md
+.env.json
+**/.env.json

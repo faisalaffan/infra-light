@@ -1,0 +1,97 @@
+# =========================================================================
+# HashiCorp Vault — Secret Management & Encryption as a Service
+# Web UI / API port 8200 → Ingress (vault.faisalaffan.com) via Cloudflare Tunnel
+# Tailscale direct access → Tailscale LoadBalancer (vault-faisalaffan.ts.net)
+# Kubernetes secrets injection → Vault Agent Injector sidecar
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: vault
+  namespace: infra
+spec:
+  chart: vault
+  repo: https://helm.releases.hashicorp.com
+  version: ${VAULT_CHART_VERSION}
+  targetNamespace: infra
+  valuesContent: |-
+    global:
+      enabled: true
+      tlsDisable: true
+
+    injector:
+      enabled: true
+      resources:
+        requests:
+          memory: "${K8S_REQUESTS_MEMORY}"
+          cpu: "${K8S_REQUESTS_CPU}"
+        limits:
+          memory: "256Mi"
+          cpu: "${K8S_LIMITS_CPU}"
+
+    server:
+      enabled: true
+      image:
+        repository: "hashicorp/vault"
+        tag: "${VAULT_VERSION}"
+
+      resources:
+        requests:
+          memory: "${K8S_REQUESTS_MEMORY}"
+          cpu: "${K8S_REQUESTS_CPU}"
+        limits:
+          memory: "${VAULT_MEMORY_LIMIT}"
+          cpu: "${K8S_LIMITS_CPU}"
+
+      dataStorage:
+        enabled: true
+        size: ${VAULT_DATA_SIZE}
+        mountPath: "/vault/data"
+
+      standalone:
+        enabled: true
+        config: |-
+          ui = true
+
+          listener "tcp" {
+            tls_disable = 1
+            address = "[::]:8200"
+            cluster_address = "[::]:8201"
+          }
+
+          storage "file" {
+            path = "/vault/data"
+          }
+
+      service:
+        enabled: true
+        type: ClusterIP
+        port: 8200
+        targetPort: 8200
+
+    ui:
+      enabled: true
+      serviceType: "ClusterIP"
+      servicePort: 8200
+      externalPort: 8200
+---
+# =========================================================================
+# Vault Tailscale exposure — Direct port 8200 via Tailnet
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-ts
+  namespace: infra
+  annotations:
+    tailscale.com/hostname: vault-faisalaffan
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - port: 8200
+      targetPort: 8200
+      name: http
+  selector:
+    app.kubernetes.io/name: vault
+    component: server
