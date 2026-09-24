@@ -105,6 +105,25 @@ spec:
   selector:
     app: docker-registry-ui
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-ui-ts
+  namespace: infra
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "registry-faisalaffan"
+spec:
+  type: LoadBalancer
+  loadBalancerClass: tailscale
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  selector:
+    app: docker-registry-ui
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
