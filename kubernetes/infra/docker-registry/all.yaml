@@ -146,17 +146,17 @@ spec:
           image: joxit/docker-registry-ui:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: REGISTRY_URL
+            - name: SINGLE_REGISTRY
+              value: "true"
+            - name: NGINX_PROXY_PASS_URL
               value: "http://docker-registry.infra.svc.cluster.local:5000"
+            - name: NGINX_RESOLVER
+              value: "10.43.0.10"
             - name: REGISTRY_TITLE
               value: "Faisal Affan — Private Docker Registry"
             - name: DELETE_IMAGES
               value: "true"
             - name: SHOW_CONTENT_DIGEST
-              value: "true"
-            - name: NGINX_PROXY_PASS_URL
-              value: "http://docker-registry.infra.svc.cluster.local:5000"
-            - name: SINGLE_REGISTRY
               value: "true"
             - name: PULL_URL
               value: "localhost:5000"
