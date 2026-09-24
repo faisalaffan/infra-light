@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: ewallet-dev
+spec:
+  hard:
+    requests.cpu: "500m"
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1Gi
+    pods: "10"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: wasteco-dev
+spec:
+  hard:
+    requests.cpu: "500m"
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1Gi
+    pods: "10"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: dev-quota
+  namespace: resolva-dev
+spec:
+  hard:
+    requests.cpu: "500m"
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1Gi
+    pods: "10"

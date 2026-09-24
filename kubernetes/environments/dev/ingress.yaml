@@ -1,0 +1,98 @@
+# =========================================================================
+# Development Ingress Resources — L7 routing for Dev namespaces
+# =========================================================================
+
+# --- Resolva (Dev) Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: resolva-dev-ingress
+  namespace: resolva-dev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - resolva-dev.faisalaffan.com
+        - resolva-api-dev.faisalaffan.com
+      secretName: resolva-dev-tls
+  rules:
+    - host: resolva-dev.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-frontend-svc
+                port:
+                  number: 5454
+    - host: resolva-api-dev.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-backend-svc
+                port:
+                  number: 3020
+---
+# --- E-Wallet (Dev) Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ewallet-dev-ingress
+  namespace: ewallet-dev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ewallet-dev.faisalaffan.com
+      secretName: ewallet-dev-tls
+  rules:
+    - host: ewallet-dev.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ewallet-api
+                port:
+                  number: 8080
+---
+# --- WasteCo (Dev) Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasteco-dev-ingress
+  namespace: wasteco-dev
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - wasteco-dev.faisalaffan.com
+      secretName: wasteco-dev-tls
+  rules:
+    - host: wasteco-dev.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wasteco-api
+                port:
+                  number: 8080

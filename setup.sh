@@ -28,6 +28,7 @@ GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
 KUSTOMIZE_DIR="${SCRIPT_DIR}/kubernetes/infra"
+ENVIRONMENTS_DIR="${SCRIPT_DIR}/kubernetes/environments"
 HELMCHART_DIR="${SCRIPT_DIR}/kubernetes/helmcharts"
 
 # ------------------------------------------------------------------
@@ -378,6 +379,19 @@ deploy_kustomize() {
 }
 
 # ------------------------------------------------------------------
+# Deploy environment partitions (Dev & Prod Quotas, LimitRanges, RBAC, Ingress)
+# ------------------------------------------------------------------
+deploy_environments() {
+    log "Deploying environment partitions (Dev & Prod)..."
+    if [ -d "$ENVIRONMENTS_DIR" ]; then
+        kubectl kustomize "$ENVIRONMENTS_DIR" | kubectl apply -f -
+        log "Environments deployed ✓"
+    else
+        warn "Environments directory not found: $ENVIRONMENTS_DIR"
+    fi
+}
+
+# ------------------------------------------------------------------
 # Fix CoreDNS — force TCP untuk upstream DNS (UDP 53 sering diblok)
 # Issue: Pod network tidak bisa resolve domain eksternal via UDP 53
 # Root cause: UDP port 53 outbound dari pod network diblok firewall/network
@@ -523,6 +537,9 @@ deploy_all() {
 
     # 4. First-party: all infra services via Kustomize
     deploy_kustomize
+
+    # 4.1 Environments: Dev & Prod partitions, quotas, limitranges, RBAC, ingress
+    deploy_environments
 
     # 5. HashiCorp Vault: Unseal & configure Auth + Secrets
     configure_hashicorp_vault
