@@ -40,11 +40,11 @@ spec:
                 operator: In
                 values: ["resolva", "resolva-dev", "ewallet", "ewallet-dev", "wasteco", "wasteco-dev", "geostack"]
         - ipBlock:
-            cidr: 100.64.0.0/10
+            cidr: "${TAILSCALE_SUBNET:-100.64.0.0/10}"
         - ipBlock:
-            cidr: 10.42.0.0/16
+            cidr: "${K3S_POD_CIDR:-10.42.0.0/16}"
         - ipBlock:
-            cidr: 10.43.0.0/16
+            cidr: "${K3S_SERVICE_CIDR:-10.43.0.0/16}"
         - ipBlock:
-            cidr: 139.0.15.88/29
+            cidr: "${NODE_PUBLIC_SUBNET:-139.0.15.88/29}"
 

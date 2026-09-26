@@ -574,9 +574,10 @@ setup_k3s_registries() {
     if [ ! -f "$registries_file" ] || ! grep -q "docker-registry.infra.svc.cluster.local" "$registries_file" 2>/dev/null; then
         log "Configuring K3s local container registry mirror in $registries_file..."
         sudo mkdir -p /etc/rancher/k3s
-        cat << 'EOF' | sudo tee "$registries_file" >/dev/null
+        local public_ip="${NODE_PUBLIC_IP:-139.0.15.90}"
+        cat << EOF | sudo tee "$registries_file" >/dev/null
 mirrors:
-  "139.0.15.90:5000":
+  "${public_ip}:5000":
     endpoint:
       - "http://127.0.0.1:5000"
   "localhost:5000":

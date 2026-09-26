@@ -66,7 +66,7 @@
     dest: /etc/rancher/k3s/registries.yaml
     content: |
       mirrors:
-        "139.0.15.90:5000":
+        "{{ node_public_ip | default('139.0.15.90') }}:5000":
           endpoint:
             - "http://127.0.0.1:5000"
         "localhost:5000":
