@@ -23,6 +23,13 @@ spec:
     - host: resolva-dev.faisalaffan.com
       http:
         paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: reconciliation-backend-svc
+                port:
+                  number: 3020
           - path: /
             pathType: Prefix
             backend:
