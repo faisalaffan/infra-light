@@ -73,6 +73,8 @@
   loop:
     - { in_if: 'tailscale0' }
     - { out_if: 'tailscale0' }
+    - { in_if: 'cni0' }
+    - { out_if: 'cni0' }
 
 - name: Configure iptables NAT MASQUERADE for Tailscale subnet traffic
   iptables:
@@ -87,6 +89,8 @@
   loop:
     - { src: '100.64.0.0/10' }
     - { out_if: 'tailscale0' }
+    - { out_if: 'cni0' }
+    - { out_if: 'flannel.1' }
 
 - debug:
     msg: "✅ {{ inventory_hostname }} — Tailscale IP: {{ tailscale_ipv4 }}"

@@ -650,6 +650,7 @@ EOF
     sudo iptables -t nat -C POSTROUTING -s 100.64.0.0/10 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -s 100.64.0.0/10 -j MASQUERADE
     sudo iptables -t nat -C POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o tailscale0 -j MASQUERADE
     sudo iptables -t nat -C POSTROUTING -o cni0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o cni0 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o flannel.1 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o flannel.1 -j MASQUERADE
     log "Tailscale subnet routing & NAT configured ✓"
 }
 
