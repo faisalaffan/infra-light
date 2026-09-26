@@ -599,17 +599,25 @@ EOF
 }
 
 # ------------------------------------------------------------------
-# Fix UFW — open k3s API port (Tailscale operator handles db access)
+# Fix UFW — open k3s API port & allow routed traffic for Tailscale & CNI
 # ------------------------------------------------------------------
 fix_ufw_ports() {
     if [ "${SUDO_SKIP:-false}" = true ]; then
         return
     fi
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        if ! sudo ufw status 2>/dev/null | grep -q "6443/tcp"; then
-            log "Opening UFW port 6443 for k3s API..."
-            sudo ufw allow 6443/tcp
+        log "Configuring UFW firewall rules for Tailscale & K3s..."
+        sudo ufw allow 6443/tcp >/dev/null 2>&1 || true
+        sudo ufw allow in on tailscale0 >/dev/null 2>&1 || true
+        sudo ufw allow out on tailscale0 >/dev/null 2>&1 || true
+        sudo ufw allow in on cni0 >/dev/null 2>&1 || true
+        sudo ufw allow out on cni0 >/dev/null 2>&1 || true
+        sudo ufw default allow routed >/dev/null 2>&1 || true
+        if [ -f /etc/default/ufw ] && grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw; then
+            sudo sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+            sudo ufw reload >/dev/null 2>&1 || true
         fi
+        log "UFW configured for routed traffic ✓"
     fi
 }
 
@@ -632,13 +640,16 @@ EOF
         sudo sysctl -p /etc/sysctl.d/99-tailscale.conf >/dev/null 2>&1 || true
     fi
 
-    # Ensure iptables FORWARD rules for tailscale0 exist
+    # Ensure iptables FORWARD rules for tailscale0 and cni0 exist
     sudo iptables -C FORWARD -i tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i tailscale0 -j ACCEPT
     sudo iptables -C FORWARD -o tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o tailscale0 -j ACCEPT
+    sudo iptables -C FORWARD -i cni0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i cni0 -j ACCEPT
+    sudo iptables -C FORWARD -o cni0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o cni0 -j ACCEPT
 
     # Ensure iptables NAT MASQUERADE for Tailscale subnet traffic
     sudo iptables -t nat -C POSTROUTING -s 100.64.0.0/10 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -s 100.64.0.0/10 -j MASQUERADE
     sudo iptables -t nat -C POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o tailscale0 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o cni0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o cni0 -j MASQUERADE
     log "Tailscale subnet routing & NAT configured ✓"
 }
 
