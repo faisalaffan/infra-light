@@ -635,7 +635,11 @@ EOF
     # Ensure iptables FORWARD rules for tailscale0 exist
     sudo iptables -C FORWARD -i tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i tailscale0 -j ACCEPT
     sudo iptables -C FORWARD -o tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o tailscale0 -j ACCEPT
-    log "Tailscale subnet routing configured ✓"
+
+    # Ensure iptables NAT MASQUERADE for Tailscale subnet traffic
+    sudo iptables -t nat -C POSTROUTING -s 100.64.0.0/10 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -s 100.64.0.0/10 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o tailscale0 -j MASQUERADE
+    log "Tailscale subnet routing & NAT configured ✓"
 }
 
 # ------------------------------------------------------------------
