@@ -74,24 +74,3 @@ spec:
       serviceType: "ClusterIP"
       servicePort: 8200
       externalPort: 8200
----
-# =========================================================================
-# Vault Tailscale exposure — Direct port 8200 via Tailnet
-# =========================================================================
-apiVersion: v1
-kind: Service
-metadata:
-  name: vault-ts
-  namespace: infra
-  annotations:
-    tailscale.com/hostname: vault-faisalaffan
-spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
-  ports:
-    - port: 8200
-      targetPort: 8200
-      name: http
-  selector:
-    app.kubernetes.io/name: vault
-    component: server

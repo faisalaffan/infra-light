@@ -1,6 +1,6 @@
 # =========================================================================
-# Resolva Production Workloads
-# Namespace: resolva
+# Resolva Development Workloads
+# Namespace: resolva-dev
 # =========================================================================
 
 # --- Resolva Backend (API) ---
@@ -8,13 +8,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: reconciliation-backend-sa
-  namespace: resolva
+  namespace: resolva-dev
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: reconciliation-backend-svc
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-backend
 spec:
@@ -31,7 +31,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: reconciliation-backend
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-backend
 spec:
@@ -45,15 +45,14 @@ spec:
         app: reconciliation-backend
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "resolva-prod-role"
-        vault.hashicorp.com/agent-inject-secret-.env: "secret/data/resolva/prod"
+        vault.hashicorp.com/role: "resolva-dev-role"
+        vault.hashicorp.com/agent-inject-secret-.env: "secret/data/resolva/dev"
         vault.hashicorp.com/agent-inject-template-.env: |
-          {{- with secret "secret/data/resolva/prod" -}}
+          {{- with secret "secret/data/resolva/dev" -}}
           {{- range $key, $value := .Data.data }}
           {{ $key }}={{ $value }}
           {{- end }}
           {{- end -}}
-
     spec:
       serviceAccountName: reconciliation-backend-sa
       containers:
@@ -66,23 +65,23 @@ spec:
               protocol: TCP
           env:
             - name: SYSTEM_MODE
-              value: "PROD"
+              value: "DEV"
             - name: VAULT_SECRETS_FILE
               value: "/vault/secrets/.env"
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 50m
+              memory: 64Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 256Mi
 ---
 # --- Resolva Frontend ---
 apiVersion: v1
 kind: Service
 metadata:
   name: reconciliation-frontend-svc
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-frontend
 spec:
@@ -99,7 +98,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: reconciliation-frontend
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-frontend
 spec:
@@ -122,33 +121,33 @@ spec:
               protocol: TCP
           env:
             - name: NODE_ENV
-              value: "production"
+              value: "development"
             - name: PORT
               value: "5454"
             - name: HOST
               value: "0.0.0.0"
             - name: API_PROXY_TARGET
-              value: "http://reconciliation-backend-svc.resolva.svc.cluster.local:3020/api/**"
+              value: "http://reconciliation-backend-svc.resolva-dev.svc.cluster.local:3020/api/**"
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 25m
+              memory: 64Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 250m
+              memory: 256Mi
 ---
 # --- Resolva AI Engine ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: reconciliation-ai-sa
-  namespace: resolva
+  namespace: resolva-dev
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: reconciliation-ai-svc
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-ai
 spec:
@@ -169,7 +168,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: reconciliation-ai
-  namespace: resolva
+  namespace: resolva-dev
   labels:
     app: reconciliation-ai
 spec:
@@ -183,17 +182,17 @@ spec:
         app: reconciliation-ai
       annotations:
         vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "resolva-prod-role"
-        vault.hashicorp.com/agent-inject-secret-.env: "secret/data/resolva/prod"
+        vault.hashicorp.com/role: "resolva-dev-role"
+        vault.hashicorp.com/agent-inject-secret-.env: "secret/data/resolva/dev"
         vault.hashicorp.com/agent-inject-template-.env: |
-          {{- with secret "secret/data/resolva/prod" -}}
+          {{- with secret "secret/data/resolva/dev" -}}
           {{- range $key, $value := .Data.data }}
           {{ $key }}={{ $value }}
           {{- end }}
           {{- end -}}
     spec:
       serviceAccountName: reconciliation-ai-sa
-      terminationGracePeriodSeconds: 10
+      terminationGracePeriodSeconds: 30
       containers:
         - name: ai
           image: localhost:5000/reconciliation-ai:latest
@@ -208,11 +207,11 @@ spec:
               value: "/vault/secrets/.env"
           resources:
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 200m
+              memory: 512Mi
             limits:
-              cpu: 2000m
-              memory: 4Gi
+              cpu: 1000m
+              memory: 2Gi
           readinessProbe:
             httpGet:
               path: /health
@@ -231,42 +230,3 @@ spec:
               port: 8000
             periodSeconds: 2
             failureThreshold: 30
----
-# --- Resolva Production Ingress ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: resolva-ingress
-  namespace: resolva
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - resolva.faisalaffan.com
-        - resolva-api.faisalaffan.com
-      secretName: resolva-prod-tls
-  rules:
-    - host: resolva.faisalaffan.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: reconciliation-frontend-svc
-                port:
-                  number: 5454
-    - host: resolva-api.faisalaffan.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: reconciliation-backend-svc
-                port:
-                  number: 3020

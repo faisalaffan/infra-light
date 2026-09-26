@@ -14,15 +14,14 @@ spec:
   targetNamespace: infra
   valuesContent: |-
     architecture: standalone
+    updateStrategy:
+      type: Recreate
 
     auth:
       rootPassword: "${MONGODB_ROOT_PASSWORD}"
 
     service:
-      type: LoadBalancer
-      loadBalancerClass: tailscale
-      annotations:
-        tailscale.com/hostname: mongo-faisalaffan
+      type: ClusterIP
 
     persistence:
       enabled: true

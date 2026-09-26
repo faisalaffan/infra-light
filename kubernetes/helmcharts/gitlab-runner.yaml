@@ -1,0 +1,79 @@
+# =========================================================================
+# GitLab Runner — Kubernetes Executor for CI/CD Pipelines
+# Integrates with in-cluster Docker Registry via BuildKit Rootless
+# =========================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitlab-runner-secret
+  namespace: infra
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    meta.helm.sh/release-name: gitlab-runner
+    meta.helm.sh/release-namespace: infra
+type: Opaque
+stringData:
+  runner-token: "${GITLAB_RUNNER_AUTH_TOKEN}"
+  runner-registration-token: ""
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: gitlab-runner
+  namespace: infra
+spec:
+  chart: gitlab-runner
+  repo: https://charts.gitlab.io
+  targetNamespace: infra
+  valuesContent: |-
+    gitlabUrl: "${GITLAB_URL}"
+    runnerToken: "${GITLAB_RUNNER_AUTH_TOKEN}"
+    runners:
+      secret: gitlab-runner-secret
+      tags: "${GITLAB_RUNNER_TAGS}"
+      concurrent: ${GITLAB_RUNNER_CONCURRENT}
+      config: |
+        [[runners]]
+          [runners.kubernetes]
+            namespace = "infra"
+            image = "alpine"
+            privileged = true
+            cpu_limit = "${GITLAB_RUNNER_CPU_LIMIT}"
+            memory_limit = "${GITLAB_RUNNER_MEMORY_LIMIT}"
+            cpu_request = "${GITLAB_RUNNER_CPU_REQUEST}"
+            memory_request = "${GITLAB_RUNNER_MEMORY_REQUEST}"
+            service_account = "gitlab-runner"
+      privileged: true
+      namespace: infra
+      builds:
+        cpuLimit: "${GITLAB_RUNNER_CPU_LIMIT}"
+        memoryLimit: "${GITLAB_RUNNER_MEMORY_LIMIT}"
+        cpuRequests: "${GITLAB_RUNNER_CPU_REQUEST}"
+        memoryRequests: "${GITLAB_RUNNER_MEMORY_REQUEST}"
+      serviceAccountName: gitlab-runner
+    rbac:
+      create: true
+      clusterWideAccess: true
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitlab-runner-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: gitlab-runner
+    namespace: infra
+
+

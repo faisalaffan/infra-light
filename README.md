@@ -61,6 +61,7 @@ cp .env.example .env
 ├── kubernetes/                  # Cluster layer (applied to k3s)
 │   ├── helmcharts/              #   Third-party HelmChart CRD
 │   │   ├── cert-manager.yaml
+│   │   ├── gitlab-runner.yaml
 │   │   ├── ingress-nginx.yaml
 │   │   └── tailscale-operator.yaml
 │   ├── infra/                   #   First-party Kustomize

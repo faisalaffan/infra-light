@@ -6,4 +6,6 @@ resources:
   - resourcequota.yaml
   - rbac.yaml
   - resolva.yaml
+  - ewallet.yaml
+  - wasteco.yaml
 

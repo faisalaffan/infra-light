@@ -6,4 +6,5 @@ resources:
   - resourcequota.yaml
   - rbac.yaml
   - ingress.yaml
+  - resolva.yaml
 

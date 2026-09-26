@@ -32,10 +32,7 @@ spec:
           cpu: "${K8S_LIMITS_CPU}"
 
     service:
-      type: LoadBalancer
-      loadBalancerClass: tailscale
-      annotations:
-        tailscale.com/hostname: nats-faisalaffan
+      type: ClusterIP
 
     monitoring:
       enabled: true

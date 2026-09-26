@@ -44,23 +44,6 @@ spec:
   selector:
     app: mailpit
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: mailpit-smtp-ts
-  namespace: infra
-  annotations:
-    tailscale.com/hostname: mailpit-smtp-faisalaffan
-spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
-  ports:
-    - port: 1025
-      targetPort: 1025
-      name: smtp
-  selector:
-    app: mailpit
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:

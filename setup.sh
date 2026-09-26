@@ -218,7 +218,9 @@ bootstrap_k3s() {
 
     fix_kubeconfig
     fix_k3s_perms
+    setup_k3s_registries
     fix_ufw_ports
+    setup_tailscale_routing
     fix_kubectl_wrapper
 }
 
@@ -346,9 +348,7 @@ deploy_kustomize() {
     export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN:-faisalaffan.com}}"
     export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
-    export RESOLVA_API_TS_HOSTNAME="${RESOLVA_API_TS_HOSTNAME:-resolva-api-faisalaffan}"
     export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
-    export RESOLVA_FRONTEND_TS_HOSTNAME="${RESOLVA_FRONTEND_TS_HOSTNAME:-resolva-faisalaffan}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors
@@ -562,6 +562,43 @@ fix_k3s_perms() {
 }
 
 # ------------------------------------------------------------------
+# Configure k3s registries — allow containerd to pull from local HTTP registry
+# ------------------------------------------------------------------
+setup_k3s_registries() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
+    local registries_file="/etc/rancher/k3s/registries.yaml"
+    local needs_restart=false
+
+    if [ ! -f "$registries_file" ] || ! grep -q "docker-registry.infra.svc.cluster.local" "$registries_file" 2>/dev/null; then
+        log "Configuring K3s local container registry mirror in $registries_file..."
+        sudo mkdir -p /etc/rancher/k3s
+        cat << 'EOF' | sudo tee "$registries_file" >/dev/null
+mirrors:
+  "139.0.15.90:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+  "localhost:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+  "docker-registry.infra.svc.cluster.local:5000":
+    endpoint:
+      - "http://docker-registry.infra.svc.cluster.local:5000"
+EOF
+        sudo chmod 644 "$registries_file"
+        needs_restart=true
+        log "K3s registries.yaml configured ✓"
+    fi
+
+    if [ "$needs_restart" = true ] && systemctl is-active --quiet k3s 2>/dev/null; then
+        log "Restarting K3s to apply registries mirror configuration..."
+        sudo systemctl restart k3s
+        sleep 5
+    fi
+}
+
+# ------------------------------------------------------------------
 # Fix UFW — open k3s API port (Tailscale operator handles db access)
 # ------------------------------------------------------------------
 fix_ufw_ports() {
@@ -574,6 +611,31 @@ fix_ufw_ports() {
             sudo ufw allow 6443/tcp
         fi
     fi
+}
+
+# ------------------------------------------------------------------
+# Setup Tailscale Subnet Routing (Sysctl + IPTables FORWARD rules)
+# ------------------------------------------------------------------
+setup_tailscale_routing() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
+    log "Configuring Tailscale Subnet Router forwarding..."
+
+    # Enable IPv4/IPv6 forwarding permanently in sysctl
+    if [ ! -f /etc/sysctl.d/99-tailscale.conf ] || ! grep -q "net.ipv4.ip_forward = 1" /etc/sysctl.d/99-tailscale.conf 2>/dev/null; then
+        log "Enabling IP forwarding in /etc/sysctl.d/99-tailscale.conf..."
+        cat << 'EOF' | sudo tee /etc/sysctl.d/99-tailscale.conf >/dev/null
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+EOF
+        sudo sysctl -p /etc/sysctl.d/99-tailscale.conf >/dev/null 2>&1 || true
+    fi
+
+    # Ensure iptables FORWARD rules for tailscale0 exist
+    sudo iptables -C FORWARD -i tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i tailscale0 -j ACCEPT
+    sudo iptables -C FORWARD -o tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o tailscale0 -j ACCEPT
+    log "Tailscale subnet routing configured ✓"
 }
 
 # ------------------------------------------------------------------
@@ -758,9 +820,6 @@ verify_tls() {
 print_summary() {
     echo ""
     echo "============================================"
-    echo "  DevOps Setup Complete (Ansible)"
-    echo ""
-    echo "============================================"
     echo "  DevOps Setup Complete"
     echo "  First-party: Kustomize  |  Third-party: HelmChart"
     echo "============================================"
@@ -769,24 +828,34 @@ print_summary() {
     echo "  Kustomize:   $KUSTOMIZE_DIR"
     echo "  HelmCharts:  $HELMCHART_DIR"
     echo ""
-    echo "  Services (on K3s):"
-    echo "    PostgreSQL 17:  postgres.infra:5432"
-    echo "    MySQL 8.4:      mysql.infra:3306"
-    echo "    VictoriaMetrics: victoriametrics.infra:8428"
-    echo "    Loki:            loki.infra:3100"
-    echo "    Tempo:           tempo.infra:3200"
-    echo "    Pyroscope:       pyroscope.infra:4040"
+    echo "  Tailscale Subnet Router & Direct Local Access:"
+    echo "    Service CIDR: 10.43.0.0/16  |  Pod CIDR: 10.42.0.0/16"
+    echo "    Split DNS:    *.svc.cluster.local -> 10.43.0.10 (CoreDNS)"
+    echo ""
+    echo "  Key Internal Endpoints (Accessible from Tailnet):"
+    echo "    PostgreSQL 17:   postgres.infra:5432"
+    echo "    MySQL 8.4:       mysql.infra:3306"
+    echo "    Redis:           redis.infra:6379"
+    echo "    Redpanda Kafka:  redpanda.infra:9092"
+    echo "    NATS:            nats.infra:4222"
+    echo "    EMQX MQTT:       emqx.infra:1883"
+    echo "    MongoDB:         mongodb.infra:27017"
+    echo "    MinIO S3 / UI:   minio.infra:9000 / :9001"
     echo "    Grafana:         grafana.infra:3000"
+    echo "    VictoriaMetrics: victoriametrics.infra:8428"
+    echo "    Loki / Tempo:    loki.infra:3100 / tempo.infra:3200"
     echo "    HashiCorp Vault: vault.infra:8200"
-    echo "    Docker Registry: registry.infra:80 (UI)"
-    echo "    Resolva API:     reconciliation-backend-svc.infra:3020"
-    echo "    Resolva UI:      reconciliation-frontend-svc.infra:5454"
+    echo "    Resolva Backend: reconciliation-backend-svc.resolva:3020"
+    echo "    Resolva AI:      reconciliation-ai-svc.resolva:3000"
+    echo "    E-Wallet API:    ewallet-api.ewallet:3000"
+    echo "    Wasteco API:     wasteco-api.wasteco:3000"
+    echo "    GeoStack API:    api.geostack:3000"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""
     echo "  Quick commands:"
     echo "    export KUBECONFIG=~/.kube/k3s-config"
-    echo "    kubectl get pods -n infra"
+    echo "    kubectl get pods -A"
     echo "    kubectl kustomize $KUSTOMIZE_DIR"
     echo ""
     echo "============================================"
@@ -826,7 +895,9 @@ main() {
     detect_os
     install_base
     fix_k3s_perms
+    setup_k3s_registries
     fix_ufw_ports
+    setup_tailscale_routing
     install_uv
     fix_kubectl_wrapper
     install_ansible

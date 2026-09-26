@@ -43,7 +43,7 @@ spec:
       service:
         enabled: false
       addresses:
-        - "${TAILSCALE_REDPANDA_IP:-100.101.114.48}"
+        - "redpanda.infra.svc.cluster.local"
 
     listeners:
       kafka:

@@ -124,11 +124,8 @@ kind: Service
 metadata:
   name: alloy-otel
   namespace: infra
-  annotations:
-    tailscale.com/hostname: otel-faisalaffan
 spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
+  type: ClusterIP
   ports:
     - port: 4317
       targetPort: 4317

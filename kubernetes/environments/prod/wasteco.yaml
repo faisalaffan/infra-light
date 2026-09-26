@@ -1,0 +1,97 @@
+# =========================================================================
+# WasteCo Production Workloads
+# Namespace: wasteco
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: wasteco-api
+  namespace: wasteco
+  labels:
+    app.kubernetes.io/name: wasteco-api
+    app.kubernetes.io/part-of: community-waste-collection
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8090
+      protocol: TCP
+  selector:
+    app: wasteco-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wasteco-api
+  namespace: wasteco
+  labels:
+    app: wasteco-api
+    app.kubernetes.io/name: wasteco-api
+    app.kubernetes.io/part-of: community-waste-collection
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wasteco-api
+  template:
+    metadata:
+      labels:
+        app: wasteco-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/faisalaffan/community-waste-collection-api:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8090
+          envFrom:
+            - secretRef:
+                name: wasteco-secret-4ddd5gmf78
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /api/households?page=1&per_page=1
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/households?page=1&per_page=1
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasteco-api
+  namespace: wasteco
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - waste-collection.faisalaffan.com
+      secretName: wasteco-tls
+  rules:
+    - host: waste-collection.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: wasteco-api
+                port:
+                  number: 8080

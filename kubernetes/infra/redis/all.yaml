@@ -19,11 +19,8 @@ kind: Service
 metadata:
   name: redis
   namespace: infra
-  annotations:
-    tailscale.com/hostname: redis-faisalaffan
 spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
+  type: ClusterIP
   ports:
     - port: 6379
       targetPort: 6379

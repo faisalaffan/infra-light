@@ -61,6 +61,25 @@
     mode: 0644
   notify: restart k3s
 
+- name: Configure k3s — private docker registry mirror
+  copy:
+    dest: /etc/rancher/k3s/registries.yaml
+    content: |
+      mirrors:
+        "139.0.15.90:5000":
+          endpoint:
+            - "http://127.0.0.1:5000"
+        "localhost:5000":
+          endpoint:
+            - "http://127.0.0.1:5000"
+        "docker-registry.infra.svc.cluster.local:5000":
+          endpoint:
+            - "http://docker-registry.infra.svc.cluster.local:5000"
+    owner: root
+    mode: 0644
+  notify: restart k3s
+
+
 - name: Get K3s node token
   slurp:
     src: /var/lib/rancher/k3s/server/node-token
