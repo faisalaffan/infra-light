@@ -1,0 +1,29 @@
+# ==============================================================================
+# Vultr Failover Production Environment Configuration Example
+# Copy this file to terraform.tfvars and fill in your details
+# ==============================================================================
+
+vultr_api_key = "YOUR_VULTR_API_KEY"
+vultr_region  = "cgk"                    # Jakarta (cgk) or Singapore (sgp)
+vultr_plan    = "voc-g-8c-32gb-300s-amd" # 8 vCPU, 32GB RAM (setara baremetal)
+
+# Target K3s version matching baremetal
+k3s_version = "v1.30.2+k3s1"
+
+# Backblaze B2 S3-compatible snapshot credentials
+b2_endpoint        = "https://s3.us-west-004.backblazeb2.com"
+b2_bucket          = "my-homelab-k3s-backups"
+b2_prefix          = "k3s-snapshots"
+b2_key_id          = "YOUR_B2_APPLICATION_KEY_ID"
+b2_application_key = "YOUR_B2_APPLICATION_KEY"
+
+# GitOps repo to pull latest manifests
+gitops_repo_url = "https://github.com/your-user/your-devops-repo.git"
+gitops_branch   = "main"
+
+# DNS switch settings (Only toggle enable_dns_switch=true after health check passes)
+dns_provider         = "cloudflare"
+enable_dns_switch    = false
+prod_record_name     = "homelab.example.com"
+cloudflare_zone_id   = "YOUR_CLOUDFLARE_ZONE_ID"
+cloudflare_api_token = "YOUR_CLOUDFLARE_API_TOKEN"

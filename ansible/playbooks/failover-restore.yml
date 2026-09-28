@@ -1,0 +1,162 @@
+---
+# ==============================================================================
+# Playbook: Baremetal K3s Disaster Recovery & Restore from Backblaze B2
+# Target: Any Baremetal Linux server (Homelab, On-Premise, or Friend's Server)
+# Usage:
+#   ansible-playbook playbooks/failover-restore.yml -i inventory/hosts.yml \
+#     -e "target_hosts=k3s_server"
+# ==============================================================================
+
+- name: Baremetal K3s Disaster Recovery Restore
+  hosts: "{{ target_hosts | default('k3s_server') }}"
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: "{{ failover_k3s_version | default('v1.30.2+k3s1') }}"
+    b2_endpoint: "{{ failover_b2_endpoint | default('https://s3.us-west-004.backblazeb2.com') }}"
+    b2_bucket: "{{ failover_b2_bucket | default('my-homelab-k3s-backups') }}"
+    b2_prefix: "{{ failover_b2_prefix | default('k3s-snapshots') }}"
+    b2_key_id: "{{ vault_b2_key_id | default(lookup('env', 'B2_APPLICATION_KEY_ID')) }}"
+    b2_app_key: "{{ vault_b2_app_key | default(lookup('env', 'B2_APPLICATION_KEY')) }}"
+    snapshot_local_dir: "/var/lib/rancher/k3s/server/db/snapshots"
+    gitops_repo_url: "{{ failover_gitops_repo | default('') }}"
+    gitops_branch: "{{ failover_gitops_branch | default('main') }}"
+
+  tasks:
+    - name: 1. Ensure required system dependencies are installed
+      ansible.builtin.apt:
+        name:
+          - curl
+          - jq
+          - git
+          - rsync
+          - ca-certificates
+          - awscli
+        state: present
+        update_cache: true
+
+    - name: 2. Create snapshot and config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+      loop:
+        - "{{ snapshot_local_dir }}"
+        - /etc/rancher/k3s
+        - /var/log/failover
+
+    - name: 3. Fetch latest K3s snapshot filename from B2 bucket
+      ansible.builtin.shell: |
+        set -o pipefail
+        aws --endpoint-url "{{ b2_endpoint }}" s3 ls "s3://{{ b2_bucket }}/{{ b2_prefix }}/" \
+          | sort | tail -n 1 | awk '{print $4}'
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ b2_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ b2_app_key }}"
+        AWS_DEFAULT_REGION: "us-east-1"
+      register: latest_snapshot_result
+      changed_when: false
+      failed_when: false
+
+    - name: 4. Set latest snapshot fact
+      ansible.builtin.set_fact:
+        latest_snapshot_file: "{{ latest_snapshot_result.stdout | trim }}"
+
+    - name: 5. Download snapshot from B2 if found
+      when: latest_snapshot_file != ""
+      ansible.builtin.shell: |
+        aws --endpoint-url "{{ b2_endpoint }}" s3 cp \
+          "s3://{{ b2_bucket }}/{{ b2_prefix }}/{{ latest_snapshot_file }}" \
+          "{{ snapshot_local_dir }}/{{ latest_snapshot_file }}"
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ b2_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ b2_app_key }}"
+        AWS_DEFAULT_REGION: "us-east-1"
+      register: download_output
+      changed_when: download_output.rc == 0
+
+    - name: 6. Check if K3s service currently exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s.service
+      register: k3s_service_stat
+
+    - name: 7. Stop K3s service if running
+      when: k3s_service_stat.stat.exists
+      ansible.builtin.systemd:
+        name: k3s
+        state: stopped
+
+    - name: 8. Restore K3s from Snapshot
+      when: latest_snapshot_file != ""
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" \
+          INSTALL_K3S_EXEC="server --cluster-reset --from-dump={{ snapshot_local_dir }}/{{ latest_snapshot_file }} --write-kubeconfig-mode 644" \
+          sh -
+      register: restore_output
+      changed_when: restore_output.rc == 0
+
+    - name: 9. Initialize fresh K3s if no snapshot found
+      when: latest_snapshot_file == ""
+      ansible.builtin.shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ k3s_version }}" \
+          INSTALL_K3S_EXEC="server --write-kubeconfig-mode 644" \
+          sh -
+      register: init_output
+      changed_when: init_output.rc == 0
+
+    - name: 10. Start and enable K3s service
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+        enabled: true
+
+    - name: 11. Wait for K3s node to become Ready
+      ansible.builtin.shell: |
+        kubectl get nodes --no-headers | grep -q "Ready"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: node_status
+      until: node_status.rc == 0
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: 12. Apply GitOps Kubernetes manifests (if repo configured)
+      when: gitops_repo_url != ""
+      block:
+        - name: Git clone manifests
+          ansible.builtin.git:
+            repo: "{{ gitops_repo_url }}"
+            dest: /opt/devops-gitops
+            version: "{{ gitops_branch }}"
+            force: true
+
+        - name: Kubectl apply manifests
+          ansible.builtin.shell: |
+            kubectl apply -k /opt/devops-gitops/kubernetes/environments/prod || \
+            kubectl apply -f /opt/devops-gitops/kubernetes/environments/prod || true
+          environment:
+            KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+          changed_when: true
+
+    - name: 13. Verify Cluster Health
+      ansible.builtin.shell: |
+        echo "=== K3s Node Status ==="
+        kubectl get nodes -o wide
+        echo "=== Pod Status ==="
+        kubectl get pods -A
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: health_summary
+      changed_when: false
+
+    - name: 14. Print Disaster Recovery Summary
+      ansible.builtin.debug:
+        msg:
+          - "✅ Baremetal K3s Disaster Recovery Completed Successfully!"
+          - "Snapshot Restored: {{ latest_snapshot_file | default('None (Clean Install)') }}"
+          - "Node Status Output:"
+          - "{{ health_summary.stdout_lines }}"

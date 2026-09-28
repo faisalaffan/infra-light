@@ -21,6 +21,10 @@ ingress:
 cloudflared:
 	ansible-playbook playbooks/cloudflared.yml -i inventory/hosts.yml --ask-vault-pass
 
+restore:
+	ansible-playbook playbooks/failover-restore.yml -i inventory/hosts.yml --ask-vault-pass
+
+
 # ── Vault Encryption ──────────────────────────────────────────
 encrypt-ts:
 	@read -p "Tailscale authkey: " key; \

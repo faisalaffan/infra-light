@@ -1,15 +1,47 @@
+# Environment variables
 .env
 **/.env
 .env.local
 **/.env.local
+.env.json
+**/.env.json
 !**/.env.example
+
+# Local and temporary storage
 data/
 logs/
 backups/
+__pycache__/
 *.retry
+*.log
+
+# HashiCorp Vault & Secrets
 **/vault.yml
 !**/vault.yml.example
-__pycache__/
+**/vault_pass*
+.vault-pass*
 SEALED_TOKEN_VAULT.md
-.env.json
-**/.env.json
+
+# Private Keys & Certificates
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Terraform / OpenTofu Secrets and State
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform.tfstate.lock.info
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+crash.*.log

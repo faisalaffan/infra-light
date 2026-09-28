@@ -102,3 +102,45 @@ vault-help:
 	@echo "  make vault-init                    Initialize Vault (generates unseal keys + root token)"
 	@echo "  make vault-unseal KEY=<key>        Unseal Vault using unseal key"
 
+# ============================================================
+# Cold-Standby Disaster Recovery (Failover to Vultr / AWS)
+# ============================================================
+PROVIDER ?= vultr
+ENV ?= drill
+
+.PHONY: failover-plan failover-apply failover-destroy failover-output failover-help
+
+failover-plan:
+	@bash ./failover/failover.sh plan $(ENV) $(PROVIDER)
+
+failover-apply:
+	@bash ./failover/failover.sh apply $(ENV) $(PROVIDER)
+
+failover-destroy:
+	@bash ./failover/failover.sh destroy $(ENV) $(PROVIDER)
+
+failover-output:
+	@bash ./failover/failover.sh output $(ENV) $(PROVIDER)
+
+failover-help:
+	@echo "Disaster Recovery Failover Management"
+	@echo ""
+	@echo "  # Cloud (Vultr / AWS) via Terraform:"
+	@echo "  make failover-plan [ENV=drill|prod] [PROVIDER=vultr|aws]"
+	@echo "  make failover-apply [ENV=drill|prod] [PROVIDER=vultr|aws]"
+	@echo "  make failover-destroy [ENV=drill|prod] [PROVIDER=vultr|aws]"
+	@echo "  make failover-output [ENV=drill|prod] [PROVIDER=vultr|aws]"
+	@echo ""
+	@echo "  # Baremetal Server via Ansible:"
+	@echo "  make baremetal-restore [TARGET=k3s_server]"
+
+# --- Baremetal Restoration via Ansible ---------------------------
+TARGET ?= k3s_server
+.PHONY: baremetal-restore
+
+baremetal-restore:
+	@echo "Restoring Baremetal K3s on target '$(TARGET)' from B2 snapshots..."
+	cd ansible && ansible-playbook playbooks/failover-restore.yml -i inventory/hosts.yml -e "target_hosts=$(TARGET)"
+
+
+
