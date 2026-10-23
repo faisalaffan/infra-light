@@ -1,10 +1,27 @@
 #cloud-config
 %{ if ssh_public_key != "" ~}
+users:
+  - default
+  - name: root
+    ssh_authorized_keys:
+      - "${ssh_public_key}"
 ssh_authorized_keys:
   - "${ssh_public_key}"
 %{ endif ~}
 
 write_files:
+%{ if ssh_public_key != "" ~}
+  - path: /root/.ssh/authorized_keys
+    permissions: '0600'
+    owner: root:root
+    content: |
+      ${ssh_public_key}
+%{ endif ~}
+  - path: /var/log/failover/restore.log
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [FAILOVER] Initializing VPS environment, package installation in progress...
   - path: /etc/failover/env
     permissions: '0600'
     owner: root:root
