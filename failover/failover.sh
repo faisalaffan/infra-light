@@ -47,8 +47,10 @@ if [[ "$PROVIDER" == "vultr" ]]; then
     TARGET_ENV_DIR="$TERRAFORM_DIR/envs/${ENV}-vultr"
 elif [[ "$PROVIDER" == "aws" ]]; then
     TARGET_ENV_DIR="$TERRAFORM_DIR/envs/${ENV}"
+elif [[ "$PROVIDER" == "tencent" || "$PROVIDER" == "tencentcloud" ]]; then
+    TARGET_ENV_DIR="$TERRAFORM_DIR/envs/${ENV}-tencent"
 else
-    echo "❌ Unknown provider: $PROVIDER. Valid options: vultr, aws" >&2
+    echo "❌ Unknown provider: $PROVIDER. Valid options: vultr, aws, tencent" >&2
     exit 1
 fi
 
@@ -68,6 +70,10 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
 
     # Map to Terraform variables
     export TF_VAR_vultr_api_key="${VULTR_API_KEY:-${TF_VAR_vultr_api_key:-}}"
+    export TF_VAR_tencentcloud_secret_id="${TENCENTCLOUD_SECRET_ID:-${TF_VAR_tencentcloud_secret_id:-}}"
+    export TF_VAR_tencentcloud_secret_key="${TENCENTCLOUD_SECRET_KEY:-${TF_VAR_tencentcloud_secret_key:-}}"
+    export TF_VAR_tencentcloud_region="${TENCENTCLOUD_REGION:-ap-jakarta}"
+    export TF_VAR_tencentcloud_zone="${TENCENTCLOUD_ZONE:-${TF_VAR_tencentcloud_zone:-}}"
     export TF_VAR_b2_key_id="${B2_APPLICATION_KEY_ID:-${TF_VAR_b2_key_id:-}}"
     export TF_VAR_b2_application_key="${B2_APPLICATION_KEY:-${TF_VAR_b2_application_key:-}}"
     export TF_VAR_b2_bucket="${B2_BUCKET:-${TF_VAR_b2_bucket:-}}"
@@ -87,9 +93,11 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     if [[ "$ENV" == "prod" ]]; then
         export TF_VAR_vultr_plan="${VULTR_PROD_PLAN:-${VULTR_PLAN:-vx1-g-16c-64g-960s}}"
         export TF_VAR_instance_type="${AWS_PROD_INSTANCE_TYPE:-${AWS_INSTANCE_TYPE:-c6i.2xlarge}}"
+        export TF_VAR_tencent_instance_type="${TENCENT_PROD_INSTANCE_TYPE:-${TENCENT_INSTANCE_TYPE:-SA2.4XLARGE64}}"
     else
         export TF_VAR_vultr_plan="${VULTR_DRILL_PLAN:-${VULTR_PLAN:-voc-g-4c-16gb-150s-amd}}"
         export TF_VAR_instance_type="${AWS_DRILL_INSTANCE_TYPE:-${AWS_INSTANCE_TYPE:-t3.xlarge}}"
+        export TF_VAR_tencent_instance_type="${TENCENT_DRILL_INSTANCE_TYPE:-${TENCENT_INSTANCE_TYPE:-SA2.LARGE8}}"
     fi
     export TF_VAR_vultr_region="${VULTR_REGION:-cgk}"
     export TF_VAR_aws_region="${AWS_REGION:-ap-southeast-3}"
