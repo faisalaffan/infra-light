@@ -107,8 +107,8 @@ if ! command -v restic &>/dev/null; then
 fi
 
 if [ "$CHECK_REPO" = true ]; then
-    log "Checking repository integrity on Backblaze B2..."
-    restic check
+    log "Checking repository integrity on Backblaze B2 (read-only mode)..."
+    restic check --no-lock
     log "Repository integrity verified successfully ✓"
     exit 0
 fi
