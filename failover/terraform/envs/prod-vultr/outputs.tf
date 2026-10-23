@@ -17,3 +17,8 @@ output "prod_dns_record" {
   description = "Production DNS record status"
   value       = module.dns.record_fqdn
 }
+
+output "check_restore_logs_command" {
+  description = "Command to live stream restore logs"
+  value       = "ssh root@${module.compute.public_ip} 'tail -f /var/log/failover/restore.log'"
+}
