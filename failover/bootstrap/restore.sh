@@ -112,12 +112,22 @@ if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PAS
     export AWS_DEFAULT_REGION="us-east-1"
     
     echo "$LOG_PREFIX Restoring Persistent Volumes from B2 Restic repository ($RESTIC_REPO)..."
-    if restic snapshots --latest 1 &>/dev/null; then
+    if restic snapshots --tag k3s-pvs --latest 1 &>/dev/null || restic snapshots --latest 1 &>/dev/null; then
         mkdir -p /var/lib/rancher/k3s/storage
-        restic restore latest --target / --include /var/lib/rancher/k3s/storage || {
-            echo "$LOG_PREFIX [WARN] Targeted include restore had warning, running fallback..."
-            restic restore latest --target / || true
-        }
+        TEMP_PV_RESTORE="/tmp/restic-pvs-restore"
+        rm -rf "$TEMP_PV_RESTORE" && mkdir -p "$TEMP_PV_RESTORE"
+        
+        echo "$LOG_PREFIX Restoring latest PV snapshot from Backblaze B2..."
+        restic restore latest --tag k3s-pvs --target "$TEMP_PV_RESTORE" || restic restore latest --target "$TEMP_PV_RESTORE"
+        
+        if [[ -d "$TEMP_PV_RESTORE/storage" ]]; then
+            echo "$LOG_PREFIX Syncing restored volumes from /storage to /var/lib/rancher/k3s/storage..."
+            cp -a "$TEMP_PV_RESTORE/storage/"* /var/lib/rancher/k3s/storage/ 2>/dev/null || rsync -a "$TEMP_PV_RESTORE/storage/" /var/lib/rancher/k3s/storage/
+        elif [[ -d "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage" ]]; then
+            echo "$LOG_PREFIX Syncing restored volumes from /var/lib/rancher/k3s/storage..."
+            cp -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/"* /var/lib/rancher/k3s/storage/ 2>/dev/null || rsync -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/" /var/lib/rancher/k3s/storage/
+        fi
+        rm -rf "$TEMP_PV_RESTORE"
         echo "$LOG_PREFIX Persistent Volumes restored successfully from Backblaze B2 ✓"
     else
         echo "$LOG_PREFIX [WARN] No Restic snapshots found in $RESTIC_REPO. Proceeding."

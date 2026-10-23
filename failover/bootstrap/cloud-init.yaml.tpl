@@ -1,4 +1,9 @@
 #cloud-config
+%{ if ssh_public_key != "" ~}
+ssh_authorized_keys:
+  - "${ssh_public_key}"
+%{ endif ~}
+
 write_files:
   - path: /etc/failover/env
     permissions: '0600'
@@ -11,6 +16,7 @@ write_files:
       B2_APPLICATION_KEY_ID="${b2_key_id}"
       B2_APPLICATION_KEY="${b2_application_key}"
       B2_PREFIX="${b2_prefix}"
+      RESTIC_PASSWORD="${restic_password}"
       GITOPS_REPO_URL="${gitops_repo_url}"
       GITOPS_BRANCH="${gitops_branch}"
 
@@ -35,6 +41,7 @@ packages:
   - ca-certificates
   - unzip
   - awscli
+  - restic
 
 runcmd:
   - echo "[FAILOVER] Starting bootstrap sequence at $(date)..."

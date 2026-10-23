@@ -72,8 +72,30 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export TF_VAR_b2_application_key="${B2_APPLICATION_KEY:-${TF_VAR_b2_application_key:-}}"
     export TF_VAR_b2_bucket="${B2_BUCKET:-${TF_VAR_b2_bucket:-}}"
     export TF_VAR_b2_endpoint="${B2_ENDPOINT:-${TF_VAR_b2_endpoint:-}}"
+    export TF_VAR_restic_password="${RESTIC_PASSWORD:-${TF_VAR_restic_password:-}}"
     export TF_VAR_cloudflare_api_token="${CLOUDFLARE_API_TOKEN:-${TF_VAR_cloudflare_api_token:-}}"
     export TF_VAR_cloudflare_zone_id="${CLOUDFLARE_ZONE_ID:-${TF_VAR_cloudflare_zone_id:-}}"
+    export TF_VAR_cloudflare_account_id="${CLOUDFLARE_ACCOUNT_ID:-${TF_VAR_cloudflare_account_id:-}}"
+    export TF_VAR_enable_load_balancer="${CLOUDFLARE_ENABLE_LOAD_BALANCER:-${TF_VAR_enable_load_balancer:-false}}"
+    export TF_VAR_homelab_origin_address="${CLOUDFLARE_HOMELAB_ORIGIN_ADDRESS:-${CLOUDFLARE_HOMELAB_TUNNEL_UUID:+$CLOUDFLARE_HOMELAB_TUNNEL_UUID.cfargotunnel.com}}"
+    export TF_VAR_vultr_origin_address="${CLOUDFLARE_VULTR_ORIGIN_ADDRESS:-${CLOUDFLARE_VULTR_TUNNEL_UUID:+$CLOUDFLARE_VULTR_TUNNEL_UUID.cfargotunnel.com}}"
+    export TF_VAR_prod_record_name="${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
+    export TF_VAR_drill_record_name="drill.${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
+    export TF_VAR_ssh_public_key="${SSH_PUBLIC_KEY:-${SSH_KEY:-$(cat ~/.ssh/id_rsa.pub 2>/dev/null || cat ~/.ssh/id_ed25519.pub 2>/dev/null || echo '')}}"
+
+    # Compute Instance Plans & Sizing (configured via .env)
+    if [[ "$ENV" == "prod" ]]; then
+        export TF_VAR_vultr_plan="${VULTR_PROD_PLAN:-${VULTR_PLAN:-vx1-g-16c-64g-960s}}"
+        export TF_VAR_instance_type="${AWS_PROD_INSTANCE_TYPE:-${AWS_INSTANCE_TYPE:-c6i.2xlarge}}"
+    else
+        export TF_VAR_vultr_plan="${VULTR_DRILL_PLAN:-${VULTR_PLAN:-voc-g-4c-16gb-150s-amd}}"
+        export TF_VAR_instance_type="${AWS_DRILL_INSTANCE_TYPE:-${AWS_INSTANCE_TYPE:-t3.xlarge}}"
+    fi
+    export TF_VAR_vultr_region="${VULTR_REGION:-cgk}"
+    export TF_VAR_aws_region="${AWS_REGION:-ap-southeast-3}"
+    if [[ -n "${FAILOVER_K3S_VERSION:-${K3S_VERSION:-}}" ]]; then
+        export TF_VAR_k3s_version="${FAILOVER_K3S_VERSION:-${K3S_VERSION:-v1.30.2+k3s1}}"
+    fi
 fi
 
 echo "=========================================================="
@@ -84,12 +106,9 @@ echo "=========================================================="
 
 cd "$TARGET_ENV_DIR"
 
-
-if [[ ! -f "terraform.tfvars" && -f "terraform.tfvars.example" ]]; then
-    echo "⚠️  terraform.tfvars not found. Creating from terraform.tfvars.example..."
-    cp terraform.tfvars.example terraform.tfvars
-    echo "👉 Please edit $TARGET_ENV_DIR/terraform.tfvars with your credentials."
-    exit 1
+# Ensure terraform.tfvars exists so terraform doesn't block on missing file
+if [[ ! -f "terraform.tfvars" ]]; then
+    touch terraform.tfvars
 fi
 
 case "$ACTION" in

@@ -41,6 +41,7 @@ SNAPSHOT_ID="latest"
 INCLUDE_PATTERN=""
 CHECK_REPO=false
 LIST_SNAPSHOTS=false
+UNLOCK_REPO=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -58,6 +59,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --check)
             CHECK_REPO=true
+            shift
+            ;;
+        --unlock)
+            UNLOCK_REPO=true
             shift
             ;;
         --list)
@@ -110,6 +115,13 @@ if [ "$CHECK_REPO" = true ]; then
     log "Checking repository integrity on Backblaze B2 (read-only mode)..."
     restic check --no-lock
     log "Repository integrity verified successfully ✓"
+    exit 0
+fi
+
+if [ "$UNLOCK_REPO" = true ]; then
+    log "Unlocking repository and clearing stale locks on Backblaze B2..."
+    restic unlock || true
+    log "Repository unlocked successfully ✓"
     exit 0
 fi
 

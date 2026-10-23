@@ -213,7 +213,7 @@ langfuse-help:
 # ============================================================
 # Backblaze B2 & Restic Disaster Recovery Management
 # ============================================================
-.PHONY: b2-backup b2-snapshots b2-check b2-cron-trigger b2-help
+.PHONY: b2-backup b2-snapshots b2-check b2-unlock b2-cron-trigger b2-help
 
 b2-backup:
 	@if [ "$$(id -u)" -ne 0 ]; then \
@@ -232,6 +232,10 @@ b2-snapshots:
 b2-check:
 	@echo "Checking Restic repository integrity on Backblaze B2..."
 	./scripts/restore-restic-b2.sh --check
+
+b2-unlock:
+	@echo "Clearing stale locks on Backblaze B2..."
+	./scripts/restore-restic-b2.sh --unlock
 
 b2-cron-trigger:
 	@JOB="k3s-b2-backup-manual-$$(date +%s)"; \

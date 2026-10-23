@@ -35,16 +35,15 @@ resource "vultr_firewall_rule" "https" {
   notes             = "HTTPS Ingress"
 }
 
-# Optional Restricted SSH (22)
+# SSH Access (22)
 resource "vultr_firewall_rule" "ssh" {
-  count             = var.allowed_ssh_ip != "" ? 1 : 0
   firewall_group_id = vultr_firewall_group.this.id
   protocol          = "tcp"
   ip_type           = "v4"
-  subnet            = var.allowed_ssh_ip
-  subnet_size       = var.allowed_ssh_subnet_size
+  subnet            = var.allowed_ssh_ip != "" ? var.allowed_ssh_ip : "0.0.0.0"
+  subnet_size       = var.allowed_ssh_ip != "" ? var.allowed_ssh_subnet_size : 0
   port              = "22"
-  notes             = "SSH Access (Restricted)"
+  notes             = "SSH Access"
 }
 
 # Optional Restricted K3s API (6443)

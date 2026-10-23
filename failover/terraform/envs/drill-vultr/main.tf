@@ -25,7 +25,7 @@ provider "cloudflare" {
 locals {
   environment = "drill"
 
-  user_data_rendered = templatefile("${path.module}/../../bootstrap/cloud-init.yaml.tpl", {
+  user_data_rendered = templatefile("${path.module}/../../../bootstrap/cloud-init.yaml.tpl", {
     environment                = local.environment
     k3s_version                = var.k3s_version
     b2_endpoint                = var.b2_endpoint
@@ -33,10 +33,12 @@ locals {
     b2_key_id                  = var.b2_key_id
     b2_application_key         = var.b2_application_key
     b2_prefix                  = var.b2_prefix
+    restic_password            = var.restic_password
+    ssh_public_key             = var.ssh_public_key
     gitops_repo_url            = var.gitops_repo_url
     gitops_branch              = var.gitops_branch
-    restore_script_content     = indent(4, file("${path.module}/../../bootstrap/restore.sh"))
-    healthcheck_script_content = indent(4, file("${path.module}/../../bootstrap/healthcheck.sh"))
+    restore_script_content     = indent(4, file("${path.module}/../../../bootstrap/restore.sh"))
+    healthcheck_script_content = indent(4, file("${path.module}/../../../bootstrap/healthcheck.sh"))
   })
 }
 
@@ -57,10 +59,14 @@ module "compute" {
 module "dns" {
   source = "../../modules/dns"
 
-  environment        = local.environment
-  dns_provider       = var.dns_provider
-  enable_dns_switch  = var.enable_dns_switch
-  record_name        = var.drill_record_name
-  target_ip          = module.compute.public_ip
-  cloudflare_zone_id = var.cloudflare_zone_id
+  environment            = local.environment
+  dns_provider           = var.dns_provider
+  enable_dns_switch      = var.enable_dns_switch
+  record_name            = var.drill_record_name
+  target_ip              = module.compute.public_ip
+  cloudflare_zone_id     = var.cloudflare_zone_id
+  enable_load_balancer   = var.enable_load_balancer
+  cloudflare_account_id  = var.cloudflare_account_id
+  homelab_origin_address = var.homelab_origin_address
+  standby_origin_address = var.vultr_origin_address
 }

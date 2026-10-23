@@ -17,15 +17,21 @@ variable "vultr_region" {
 }
 
 variable "vultr_plan" {
-  description = "Vultr Plan ID for production capacity (~8 vCPU, 32GB RAM)"
+  description = "Vultr Plan ID for production capacity (16 vCPU, 64GB RAM, 960GB NVMe)"
   type        = string
-  default     = "voc-g-8c-32gb-300s-amd"
+  default     = "vx1-g-16c-64g-960s"
 }
 
 variable "ssh_key_ids" {
   description = "List of SSH Key IDs registered in Vultr account"
   type        = list(string)
   default     = []
+}
+
+variable "ssh_public_key" {
+  description = "SSH Public Key content to authorize in cloud-init"
+  type        = string
+  default     = ""
 }
 
 variable "allowed_ssh_ip" {
@@ -79,6 +85,13 @@ variable "b2_prefix" {
   default     = "k3s-snapshots"
 }
 
+variable "restic_password" {
+  description = "Restic repository password for decrypting Persistent Volumes from Backblaze B2"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "gitops_repo_url" {
   description = "GitOps repository URL"
   type        = string
@@ -119,6 +132,31 @@ variable "cloudflare_api_token" {
 
 variable "cloudflare_zone_id" {
   description = "Cloudflare Zone ID"
+  type        = string
+  default     = ""
+}
+
+# --- Cloudflare Load Balancer Dual-Tunnel Steering ---
+variable "enable_load_balancer" {
+  description = "Whether to deploy Cloudflare Load Balancer instead of simple A-record"
+  type        = bool
+  default     = false
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare Account ID (required for Load Balancer pools)"
+  type        = string
+  default     = ""
+}
+
+variable "homelab_origin_address" {
+  description = "Origin address for Homelab Primary (e.g. <uuid>.cfargotunnel.com)"
+  type        = string
+  default     = ""
+}
+
+variable "vultr_origin_address" {
+  description = "Origin address for Standby Vultr (e.g. <uuid>.cfargotunnel.com)"
   type        = string
   default     = ""
 }

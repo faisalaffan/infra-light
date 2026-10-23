@@ -5,7 +5,7 @@
 
 vultr_api_key = "YOUR_VULTR_API_KEY"
 vultr_region  = "cgk"                    # Jakarta (cgk) or Singapore (sgp)
-vultr_plan    = "voc-g-8c-32gb-300s-amd" # 8 vCPU, 32GB RAM (setara baremetal)
+vultr_plan    = "vx1-g-16c-64g-960s" # 16 vCPU, 64GB RAM, 960GB NVMe ($0.612/hr)
 
 # Target K3s version matching baremetal
 k3s_version = "v1.30.2+k3s1"

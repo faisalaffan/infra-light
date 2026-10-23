@@ -50,3 +50,40 @@ variable "route53_zone_id" {
   type        = string
   default     = ""
 }
+
+# --- Cloudflare Load Balancer & Multi-Tunnel Steering ---
+variable "enable_load_balancer" {
+  description = "Whether to deploy Cloudflare Load Balancer instead of simple A-record"
+  type        = bool
+  default     = false
+}
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare Account ID (required for Load Balancer pools)"
+  type        = string
+  default     = ""
+}
+
+variable "homelab_origin_address" {
+  description = "Origin address for Homelab Primary (e.g. <uuid>.cfargotunnel.com)"
+  type        = string
+  default     = ""
+}
+
+variable "standby_origin_address" {
+  description = "Origin address for Standby Cloud (e.g. <uuid>.cfargotunnel.com or IP)"
+  type        = string
+  default     = ""
+}
+
+variable "health_check_path" {
+  description = "Path for health check probe"
+  type        = string
+  default     = "/healthz"
+}
+
+variable "health_check_interval" {
+  description = "Health check probe interval in seconds"
+  type        = number
+  default     = 60
+}
