@@ -216,8 +216,14 @@ langfuse-help:
 .PHONY: b2-backup b2-snapshots b2-check b2-cron-trigger b2-help
 
 b2-backup:
-	@echo "Running Disaster Recovery Backup to Backblaze B2..."
-	./scripts/backup-restic-b2.sh
+	@if [ "$$(id -u)" -ne 0 ]; then \
+		echo "Notice: Non-root user ($$USER) detected."; \
+		echo "Routing backup through Kubernetes runner (has full root access to PV volumes)..."; \
+		$(MAKE) b2-cron-trigger; \
+	else \
+		echo "Running Disaster Recovery Backup to Backblaze B2 (Host Root Mode)..."; \
+		./scripts/backup-restic-b2.sh; \
+	fi
 
 b2-snapshots:
 	@echo "Listing Restic snapshots from Backblaze B2..."
@@ -228,8 +234,12 @@ b2-check:
 	./scripts/restore-restic-b2.sh --check
 
 b2-cron-trigger:
-	@echo "Triggering Kubernetes CronJob/k3s-b2-backup..."
-	$(KUBECTL) create job --from=cronjob/k3s-b2-backup k3s-b2-backup-manual-$$(date +%s) -n $(NAMESPACE)
+	@JOB="k3s-b2-backup-manual-$$(date +%s)"; \
+	echo "Triggering Kubernetes Job/$$JOB..."; \
+	$(KUBECTL) create job --from=cronjob/k3s-b2-backup $$JOB -n $(NAMESPACE); \
+	echo "Waiting for pod to start..."; \
+	sleep 4; \
+	$(KUBECTL) logs -n $(NAMESPACE) -l app=k3s-b2-backup -f --tail=30 || true
 
 b2-help:
 	@echo "Backblaze B2 & Restic Disaster Recovery (k3s infra)"

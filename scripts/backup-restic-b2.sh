@@ -191,8 +191,11 @@ backup_k3s_state() {
 backup_persistent_volumes() {
     log "=== Phase 2: Persistent Volumes Backup ==="
     if [[ ! -d "$STORAGE_PATH" ]]; then
-        warn "Storage path '$STORAGE_PATH' does not exist or is inaccessible. Skipping PV backup."
+        warn "Storage path '$STORAGE_PATH' does not exist. Skipping PV backup."
         return
+    fi
+    if [[ ! -r "$STORAGE_PATH" ]]; then
+        err "Permission denied: Cannot read '$STORAGE_PATH' as user '$(whoami)'.\n       Kubernetes storage volumes are owned by root.\n       👉 Jalankan dengan sudo: 'sudo ./scripts/backup-restic-b2.sh'\n       👉 Atau jalankan via K8s runner: 'make b2-cron-trigger'"
     fi
 
     log "Target volume directory: $STORAGE_PATH"
