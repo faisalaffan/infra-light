@@ -59,26 +59,41 @@ spec:
                   fi
 
                   EXCLUDE_ARGS="--exclude=lost+found --exclude=*.sock --exclude=*.tmp"
-                  if [ "${EXCLUDE_REGISTRY:-true}" = "true" ]; then
+                  if [ "\${EXCLUDE_REGISTRY:-true}" = "true" ]; then
                     echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Excluding docker-registry-data cache..."
-                    EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=*docker-registry*"
+                    EXCLUDE_ARGS="\$EXCLUDE_ARGS --exclude=*docker-registry*"
                   fi
 
                   echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /storage (Persistent Volumes)..."
                   restic backup /storage \
                     --tag=k3s-pvs \
                     --tag=type=pv-storage \
-                    $EXCLUDE_ARGS
+                    \$EXCLUDE_ARGS &
+                  RESTIC_PID=\$!
+
+                  # Live progress percentage heartbeat (every 10s)
+                  while kill -0 \$RESTIC_PID 2>/dev/null; do
+                    sleep 10
+                    kill -USR1 \$RESTIC_PID 2>/dev/null || true
+                  done
+                  wait \$RESTIC_PID
 
                   echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /k3s-db (Cluster Database)..."
                   restic backup /k3s-db \
                     --tag=k3s-db \
-                    --tag=type=cluster-state
+                    --tag=type=cluster-state &
+                  DB_PID=\$!
 
-                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Enforcing retention pruning (daily=${KEEP_DAILY:-7}, weekly=${KEEP_WEEKLY:-4}, monthly=${KEEP_MONTHLY:-3})..."
+                  while kill -0 \$DB_PID 2>/dev/null; do
+                    sleep 5
+                    kill -USR1 \$DB_PID 2>/dev/null || true
+                  done
+                  wait \$DB_PID
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Enforcing retention pruning (daily=\${KEEP_DAILY:-7}, weekly=\${KEEP_WEEKLY:-4}, monthly=\${KEEP_MONTHLY:-3})..."
                   restic forget --prune \
-                    --keep-daily "${KEEP_DAILY:-7}" \
-                    --keep-weekly "${KEEP_WEEKLY:-4}" \
-                    --keep-monthly "${KEEP_MONTHLY:-3}"
+                    --keep-daily "\${KEEP_DAILY:-7}" \
+                    --keep-weekly "\${KEEP_WEEKLY:-4}" \
+                    --keep-monthly "\${KEEP_MONTHLY:-3}"
 
                   echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] === K3s Restic Backup Completed Successfully ==="

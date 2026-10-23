@@ -71,10 +71,22 @@ EXCLUDE_REGISTRY="${RESTIC_EXCLUDE_REGISTRY:-true}"
 RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
 RESTIC_REPO="${RESTIC_REPOSITORY:-s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs}"
 
-# Pruning retention policies
 KEEP_DAILY="${RESTIC_RETENTION_KEEP_DAILY:-7}"
 KEEP_WEEKLY="${RESTIC_RETENTION_KEEP_WEEKLY:-4}"
 KEEP_MONTHLY="${RESTIC_RETENTION_KEEP_MONTHLY:-3}"
+
+# Strip any wrapping quotes from variables (e.g. from .env or envsubst)
+B2_ENDPOINT="${B2_ENDPOINT//\"/}"
+B2_BUCKET="${B2_BUCKET//\"/}"
+B2_PREFIX="${B2_PREFIX//\"/}"
+B2_KEY_ID="${B2_KEY_ID//\"/}"
+B2_APP_KEY="${B2_APP_KEY//\"/}"
+RESTIC_PASSWORD="${RESTIC_PASSWORD//\"/}"
+RESTIC_REPO="${RESTIC_REPO//\"/}"
+EXCLUDE_REGISTRY="${EXCLUDE_REGISTRY//\"/}"
+KEEP_DAILY="${KEEP_DAILY//\"/}"
+KEEP_WEEKLY="${KEEP_WEEKLY//\"/}"
+KEEP_MONTHLY="${KEEP_MONTHLY//\"/}"
 
 if [[ -z "$B2_KEY_ID" || -z "$B2_APP_KEY" ]]; then
     err "B2_APPLICATION_KEY_ID or B2_APPLICATION_KEY is empty in .env. Please configure Backblaze B2 credentials."
@@ -198,6 +210,7 @@ backup_persistent_volumes() {
     local restic_args=(
         "backup"
         "$STORAGE_PATH"
+        "--verbose"
         "--tag=k3s-pvs"
         "--tag=environment=${ENVIRONMENT:-prod}"
         "--tag=host=$(hostname)"

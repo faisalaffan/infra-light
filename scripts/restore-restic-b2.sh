@@ -77,6 +77,13 @@ B2_APP_KEY="${B2_APPLICATION_KEY:-}"
 RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
 RESTIC_REPO="${RESTIC_REPOSITORY:-s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs}"
 
+B2_ENDPOINT="${B2_ENDPOINT//\"/}"
+B2_BUCKET="${B2_BUCKET//\"/}"
+B2_KEY_ID="${B2_KEY_ID//\"/}"
+B2_APP_KEY="${B2_APP_KEY//\"/}"
+RESTIC_PASSWORD="${RESTIC_PASSWORD//\"/}"
+RESTIC_REPO="${RESTIC_REPO//\"/}"
+
 if [[ -z "$B2_KEY_ID" || -z "$B2_APP_KEY" ]]; then
     err "B2 credentials not found in environment."
 fi
