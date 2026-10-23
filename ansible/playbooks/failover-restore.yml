@@ -19,6 +19,8 @@
     b2_prefix: "{{ failover_b2_prefix | default('k3s-snapshots') }}"
     b2_key_id: "{{ vault_b2_key_id | default(lookup('env', 'B2_APPLICATION_KEY_ID')) }}"
     b2_app_key: "{{ vault_b2_app_key | default(lookup('env', 'B2_APPLICATION_KEY')) }}"
+    restic_password: "{{ vault_restic_password | default(lookup('env', 'RESTIC_PASSWORD')) }}"
+    restic_repo: "{{ failover_restic_repo | default('s3:' + (failover_b2_endpoint | default('https://s3.us-west-004.backblazeb2.com')) + '/' + (failover_b2_bucket | default('my-homelab-k3s-backups')) + '/restic-pvs') }}"
     snapshot_local_dir: "/var/lib/rancher/k3s/server/db/snapshots"
     gitops_repo_url: "{{ failover_gitops_repo | default('') }}"
     gitops_branch: "{{ failover_gitops_branch | default('main') }}"
@@ -33,6 +35,7 @@
           - rsync
           - ca-certificates
           - awscli
+          - restic
         state: present
         update_cache: true
 
@@ -124,7 +127,26 @@
       delay: 5
       changed_when: false
 
-    - name: 12. Apply GitOps Kubernetes manifests (if repo configured)
+    - name: 12. Restore Persistent Volumes from Backblaze B2 via Restic
+      when: restic_password != "" and b2_key_id != ""
+      ansible.builtin.shell: |
+        set -euo pipefail
+        mkdir -p /var/lib/rancher/k3s/storage
+        if restic snapshots --latest 1 >/dev/null 2>&1; then
+          restic restore latest --target / --include /var/lib/rancher/k3s/storage || \
+          restic restore latest --target / || true
+        fi
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ b2_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ b2_app_key }}"
+        AWS_DEFAULT_REGION: "us-east-1"
+        RESTIC_PASSWORD: "{{ restic_password }}"
+        RESTIC_REPOSITORY: "{{ restic_repo }}"
+      register: restic_restore_output
+      changed_when: restic_restore_output.rc == 0
+      failed_when: false
+
+    - name: 13. Apply GitOps Kubernetes manifests (if repo configured)
       when: gitops_repo_url != ""
       block:
         - name: Git clone manifests
@@ -142,7 +164,7 @@
             KUBECONFIG: /etc/rancher/k3s/k3s.yaml
           changed_when: true
 
-    - name: 13. Verify Cluster Health
+    - name: 14. Verify Cluster Health
       ansible.builtin.shell: |
         echo "=== K3s Node Status ==="
         kubectl get nodes -o wide
@@ -153,7 +175,7 @@
       register: health_summary
       changed_when: false
 
-    - name: 14. Print Disaster Recovery Summary
+    - name: 15. Print Disaster Recovery Summary
       ansible.builtin.debug:
         msg:
           - "✅ Baremetal K3s Disaster Recovery Completed Successfully!"

@@ -65,7 +65,7 @@ install_base() {
     log "Installing base packages..."
     if [ "$OS" = "linux" ]; then
         sudo apt-get update -qq
-        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release
+        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release restic awscli
     elif [ "$OS" = "macos" ]; then
         if ! command -v brew &>/dev/null; then
             log "Installing Homebrew..."
@@ -366,6 +366,18 @@ deploy_kustomize() {
     export LANGFUSE_VERSION="${LANGFUSE_VERSION:-3}"
     export MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
     export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
+    export B2_ENDPOINT="${B2_ENDPOINT:-https://s3.us-west-004.backblazeb2.com}"
+    export B2_BUCKET="${B2_BUCKET:-my-homelab-k3s-backups}"
+    export B2_PREFIX="${B2_PREFIX:-k3s-snapshots}"
+    export B2_APPLICATION_KEY_ID="${B2_APPLICATION_KEY_ID:-\"\"}"
+    export B2_APPLICATION_KEY="${B2_APPLICATION_KEY:-\"\"}"
+    export RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
+    export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs}"
+    export RESTIC_BACKUP_SCHEDULE="${RESTIC_BACKUP_SCHEDULE:-0 */6 * * *}"
+    export RESTIC_RETENTION_KEEP_DAILY="${RESTIC_RETENTION_KEEP_DAILY:-\"7\"}"
+    export RESTIC_RETENTION_KEEP_WEEKLY="${RESTIC_RETENTION_KEEP_WEEKLY:-\"4\"}"
+    export RESTIC_RETENTION_KEEP_MONTHLY="${RESTIC_RETENTION_KEEP_MONTHLY:-\"3\"}"
+    export RESTIC_EXCLUDE_REGISTRY="${RESTIC_EXCLUDE_REGISTRY:-\"true\"}"
 
     # Build kustomize + substitute env vars + apply
     # Filter: skip PVC errors (cannot patch storage), surface real errors

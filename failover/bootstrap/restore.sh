@@ -99,6 +99,31 @@ until kubectl get nodes | grep -q "Ready"; do
 done
 echo "$LOG_PREFIX K3s node is Ready."
 
+# Restore Persistent Volumes via Restic from Backblaze B2
+if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PASSWORD:-}" ]]; then
+    echo "$LOG_PREFIX Setting up Restic for Persistent Volumes restore..."
+    command -v restic &>/dev/null || { apt-get update -qq && apt-get install -y -qq restic || true; }
+    
+    RESTIC_REPO="s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs"
+    export RESTIC_REPOSITORY="$RESTIC_REPO"
+    export RESTIC_PASSWORD="${RESTIC_PASSWORD}"
+    export AWS_ACCESS_KEY_ID="${B2_APPLICATION_KEY_ID}"
+    export AWS_SECRET_ACCESS_KEY="${B2_APPLICATION_KEY}"
+    export AWS_DEFAULT_REGION="us-east-1"
+    
+    echo "$LOG_PREFIX Restoring Persistent Volumes from B2 Restic repository ($RESTIC_REPO)..."
+    if restic snapshots --latest 1 &>/dev/null; then
+        mkdir -p /var/lib/rancher/k3s/storage
+        restic restore latest --target / --include /var/lib/rancher/k3s/storage || {
+            echo "$LOG_PREFIX [WARN] Targeted include restore had warning, running fallback..."
+            restic restore latest --target / || true
+        }
+        echo "$LOG_PREFIX Persistent Volumes restored successfully from Backblaze B2 ✓"
+    else
+        echo "$LOG_PREFIX [WARN] No Restic snapshots found in $RESTIC_REPO. Proceeding."
+    fi
+fi
+
 # Apply GitOps / Manifests if configured
 if [[ -n "${GITOPS_REPO_URL:-}" ]]; then
     echo "$LOG_PREFIX Syncing manifests from GitOps repo: $GITOPS_REPO_URL ($GITOPS_BRANCH)..."

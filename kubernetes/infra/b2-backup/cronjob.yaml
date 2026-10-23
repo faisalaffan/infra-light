@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: k3s-b2-backup
+  namespace: infra
+spec:
+  schedule: "${RESTIC_BACKUP_SCHEDULE}"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: k3s-b2-backup
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: k3s-storage
+              hostPath:
+                path: /var/lib/rancher/k3s/storage
+                type: DirectoryOrCreate
+            - name: k3s-db
+              hostPath:
+                path: /var/lib/rancher/k3s/server/db
+                type: DirectoryOrCreate
+          containers:
+            - name: restic-backup
+              image: docker.io/restic/restic:latest
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: b2-backup-secrets
+              volumeMounts:
+                - name: k3s-storage
+                  mountPath: /storage
+                  readOnly: true
+                - name: k3s-db
+                  mountPath: /k3s-db
+                  readOnly: true
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] === Starting Automated K3s Restic Backup to Backblaze B2 ==="
+                  
+                  if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+                    echo "[WARN] Backblaze B2 credentials not fully set in b2-backup-secrets. Skipping backup run."
+                    exit 0
+                  fi
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Checking Restic repository at ${RESTIC_REPOSITORY}..."
+                  if ! restic snapshots --latest 1 >/dev/null 2>&1; then
+                    echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Initializing new repository on B2..."
+                    restic init
+                  else
+                    echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Repository is accessible."
+                  fi
+
+                  EXCLUDE_ARGS="--exclude=lost+found --exclude=*.sock --exclude=*.tmp"
+                  if [ "${EXCLUDE_REGISTRY:-true}" = "true" ]; then
+                    echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Excluding docker-registry-data cache..."
+                    EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude=*docker-registry*"
+                  fi
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /storage (Persistent Volumes)..."
+                  restic backup /storage \
+                    --tag=k3s-pvs \
+                    --tag=type=pv-storage \
+                    $EXCLUDE_ARGS
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /k3s-db (Cluster Database)..."
+                  restic backup /k3s-db \
+                    --tag=k3s-db \
+                    --tag=type=cluster-state
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Enforcing retention pruning (daily=${KEEP_DAILY:-7}, weekly=${KEEP_WEEKLY:-4}, monthly=${KEEP_MONTHLY:-3})..."
+                  restic forget --prune \
+                    --keep-daily "${KEEP_DAILY:-7}" \
+                    --keep-weekly "${KEEP_WEEKLY:-4}" \
+                    --keep-monthly "${KEEP_MONTHLY:-3}"
+
+                  echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] === K3s Restic Backup Completed Successfully ==="

@@ -25,4 +25,5 @@ resources:
   - ingress
   - networkpolicy
   - azure-sql-edge
+  - b2-backup
 

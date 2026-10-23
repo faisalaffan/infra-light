@@ -210,6 +210,32 @@ langfuse-help:
 	@echo "  make langfuse-flush-traces  Trigger manual 7-day trace retention flush"
 	@echo "  make langfuse-logs          Show recent logs from Web and Worker"
 
+# ============================================================
+# Backblaze B2 & Restic Disaster Recovery Management
+# ============================================================
+.PHONY: b2-backup b2-snapshots b2-check b2-cron-trigger b2-help
 
+b2-backup:
+	@echo "Running Disaster Recovery Backup to Backblaze B2..."
+	./scripts/backup-restic-b2.sh
 
+b2-snapshots:
+	@echo "Listing Restic snapshots from Backblaze B2..."
+	./scripts/backup-restic-b2.sh --snapshots
+
+b2-check:
+	@echo "Checking Restic repository integrity on Backblaze B2..."
+	./scripts/restore-restic-b2.sh --check
+
+b2-cron-trigger:
+	@echo "Triggering Kubernetes CronJob/k3s-b2-backup..."
+	$(KUBECTL) create job --from=cronjob/k3s-b2-backup k3s-b2-backup-manual-$$(date +%s) -n $(NAMESPACE)
+
+b2-help:
+	@echo "Backblaze B2 & Restic Disaster Recovery (k3s infra)"
+	@echo ""
+	@echo "  make b2-backup          Run full local backup to Backblaze B2"
+	@echo "  make b2-snapshots       List all snapshot points in B2 repository"
+	@echo "  make b2-check           Verify repository cryptographic integrity"
+	@echo "  make b2-cron-trigger    Trigger Kubernetes CronJob k3s-b2-backup"
 
