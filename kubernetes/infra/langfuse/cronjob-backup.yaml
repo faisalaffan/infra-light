@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: langfuse-backup
+  namespace: infra
+spec:
+  schedule: "${LANGFUSE_BACKUP_SCHEDULE}"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: langfuse-backup
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: langfuse-backup-data
+          containers:
+            - name: backup
+              image: docker.io/faisalaffan/postgres-all:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGHOST
+                  value: "postgres.infra.svc.cluster.local"
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  value: "${PG_SUPERUSER}"
+                - name: PGPASSWORD
+                  value: "${PG_SUPERUSER_PASSWORD}"
+                - name: PGDATABASE
+                  value: "langfuse"
+                - name: CH_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: langfuse-secrets
+                      key: CLICKHOUSE_PASSWORD
+                - name: RETENTION_DAYS
+                  valueFrom:
+                    secretKeyRef:
+                      name: langfuse-secrets
+                      key: LANGFUSE_BACKUP_RETENTION_DAYS
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+              command: ["/bin/sh", "-c"]
+              args:
+                - echo "IyEvYmluL3NoCnNldCAtZXUKClRJTUVTVEFNUD0kKGRhdGUgKyVZJW0lZF8lSCVNJVMpCkRBVEVfREFZPSQoZGF0ZSArJVktJW0tJWQpCkJBQ0tVUF9ESVI9Ii9iYWNrdXBzL2RhaWx5LyR7REFURV9EQVl9IgpSRVRFTlRJT049IiR7UkVURU5USU9OX0RBWVM6LTd9IgpDSF9VUkw9Imh0dHA6Ly9jbGlja2hvdXNlLmluZnJhLnN2Yy5jbHVzdGVyLmxvY2FsOjgxMjMiCgpta2RpciAtcCAiJHtCQUNLVVBfRElSfSIKCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gPT09IFN0YXJ0aW5nIExhbmdmdXNlIERhaWx5IEJhY2t1cCBmb3IgJHtEQVRFX0RBWX0gPT09IgoKIyAxLiBCYWNrdXAgUG9zdGdyZVNRTCB0cmFuc2FjdGlvbmFsIGRhdGFiYXNlClBHX0ZJTEU9IiR7QkFDS1VQX0RJUn0vbGFuZ2Z1c2VfcG9zdGdyZXNfJHtUSU1FU1RBTVB9LmR1bXAiCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gRHVtcGluZyBQb3N0Z3JlU1FMIGRhdGFiYXNlICcke1BHREFUQUJBU0V9Jy4uLiIKUEdQQVNTV09SRD0iJHtQR1BBU1NXT1JEfSIgcGdfZHVtcCAtaCAiJHtQR0hPU1R9IiAtcCAiJHtQR1BPUlR9IiAtVSAiJHtQR1VTRVJ9IiAtZCAiJHtQR0RBVEFCQVNFfSIgLUZjIC1mICIke1BHX0ZJTEV9IgpscyAtbGggIiR7UEdfRklMRX0iCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gUG9zdGdyZVNRTCBiYWNrdXAgY29tcGxldGUg4pyTIgoKIyAyLiBCYWNrdXAgQ2xpY2tIb3VzZSBTY2hlbWEgJiBNZXRhZGF0YQpDSF9GSUxFPSIke0JBQ0tVUF9ESVJ9L2xhbmdmdXNlX2NsaWNraG91c2Vfc2NoZW1hXyR7VElNRVNUQU1QfS5zcWwiCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gRXhwb3J0aW5nIENsaWNrSG91c2Ugc2NoZW1hcy4uLiIKewogIGVjaG8gIi0tIENsaWNrSG91c2UgU2NoZW1hIEJhY2t1cCAke1RJTUVTVEFNUH0iCiAgZm9yIFQgaW4gJChjdXJsIC1zIC11ICJkZWZhdWx0OiR7Q0hfUEFTU1dPUkR9IiAiJHtDSF9VUkx9Lz9xdWVyeT1TSE9XK1RBQkxFUytGUk9NK2RlZmF1bHQiKTsgZG8KICAgIGVjaG8gIi0tIFRhYmxlOiAkVCIKICAgIGN1cmwgLXMgLXUgImRlZmF1bHQ6JHtDSF9QQVNTV09SRH0iICIke0NIX1VSTH0vP3F1ZXJ5PVNIT1crQ1JFQVRFK1RBQkxFK2RlZmF1bHQuJHtUfSIKICAgIGVjaG8gIjsiCiAgZG9uZQp9ID4gIiR7Q0hfRklMRX0iIDI+L2Rldi9udWxsIHx8IHRydWUKbHMgLWxoICIke0NIX0ZJTEV9IgplY2hvICJbJChkYXRlIC11ICsnJVktJW0tJWRUJUg6JU06JVNaJyldIENsaWNrSG91c2Ugc2NoZW1hIGJhY2t1cCBjb21wbGV0ZSDinJMiCgojIDMuIENyZWF0ZSBjb21wcmVzc2VkIGJ1bmRsZSBmb3IgdGhlIGRheQpBUkNISVZFX0ZJTEU9Ii9iYWNrdXBzL2xhbmdmdXNlX2JhY2t1cF8ke0RBVEVfREFZfV8ke1RJTUVTVEFNUH0udGFyLmd6Igp0YXIgLWN6ZiAiJHtBUkNISVZFX0ZJTEV9IiAtQyAiL2JhY2t1cHMvZGFpbHkiICIke0RBVEVfREFZfSIKcm0gLXJmICIke0JBQ0tVUF9ESVJ9IgplY2hvICJbJChkYXRlIC11ICsnJVktJW0tJWRUJUg6JU06JVNaJyldIENvbXByZXNzZWQgYXJjaGl2ZSBjcmVhdGVkOiAke0FSQ0hJVkVfRklMRX0gKCQoZHUgLWggIiR7QVJDSElWRV9GSUxFfSIgfCBjdXQgLWYxKSkiCgojIDQuIE1pcnJvciBhcmNoaXZlIHRvIE1pbklPIFMzIGJ1Y2tldCAobGFuZ2Z1c2UtYmFja3VwcykKZWNobyAiWyQoZGF0ZSAtdSArJyVZLSVtLSVkVCVIOiVNOiVTWicpXSBNaXJyb3JpbmcgYXJjaGl2ZSB0byBNaW5JTyBTMyBidWNrZXQgJ2xhbmdmdXNlLWJhY2t1cHMnLi4uIgpGSUxFTkFNRT0kKGJhc2VuYW1lICIke0FSQ0hJVkVfRklMRX0iKQpjdXJsIC1zIC1mIC1YIFBVVCAtVCAiJHtBUkNISVZFX0ZJTEV9IiAiaHR0cDovL21pbmlvLXMzLmluZnJhLnN2Yy5jbHVzdGVyLmxvY2FsOjkwMDAvbGFuZ2Z1c2UtYmFja3Vwcy8ke0ZJTEVOQU1FfSIgfHwgZWNobyAiV2FybmluZzogTWluSU8gbWlycm9yIHNraXBwZWQsIGxvY2FsIHBlcnNpc3RlbnQgYmFja3VwIHByZXNlcnZlZC4iCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gTWluSU8gbWlycm9yIHN0ZXAgY29tcGxldGVkIOKckyIKCiMgNS4gRGFpbHkgQmFja3VwIFJldGVudGlvbjogcHJ1bmUgYmFja3VwcyBvbGRlciB0aGFuIFJFVEVOVElPTl9EQVlTCmVjaG8gIlskKGRhdGUgLXUgKyclWS0lbS0lZFQlSDolTTolU1onKV0gUHJ1bmluZyBkYWlseSBiYWNrdXBzIG9sZGVyIHRoYW4gJHtSRVRFTlRJT059IGRheXMgaW4gL2JhY2t1cHMuLi4iCmZpbmQgL2JhY2t1cHMgLW1heGRlcHRoIDEgLW5hbWUgImxhbmdmdXNlX2JhY2t1cF8qLnRhci5neiIgLW10aW1lICsiJHtSRVRFTlRJT059IiAtZXhlYyBlY2hvICJSZW1vdmluZyBleHBpcmVkIGJhY2t1cDoge30iIFw7IC1leGVjIHJtIC1mIHt9IFw7CgplY2hvICJbJChkYXRlIC11ICsnJVktJW0tJWRUJUg6JU06JVNaJyldIEN1cnJlbnQgYmFja3VwcyBpbiAvYmFja3VwczoiCmxzIC1saCAvYmFja3VwcwplY2hvICJbJChkYXRlIC11ICsnJVktJW0tJWRUJUg6JU06JVNaJyldID09PSBMYW5nZnVzZSBEYWlseSBCYWNrdXAgQ29tcGxldGVkIFN1Y2Nlc3NmdWxseSA9PT0iCg==" | base64 -d | /bin/sh

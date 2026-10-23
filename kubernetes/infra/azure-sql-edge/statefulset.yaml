@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: azure-sql-edge
+  namespace: infra
+spec:
+  serviceName: azure-sql-edge
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azure-sql-edge
+  template:
+    metadata:
+      labels:
+        app: azure-sql-edge
+    spec:
+      containers:
+        - name: azure-sql-edge
+          image: mcr.microsoft.com/azure-sql-edge:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1433
+              name: mssql
+          envFrom:
+            - secretRef:
+                name: azure-sql-edge-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/opt/mssql
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi

@@ -38,6 +38,8 @@ spec:
         - ${REDPANDA_CONSOLE_HOSTNAME}
         - ${VAULT_UI_HOSTNAME}
         - ${REGISTRY_UI_HOSTNAME}
+        - ${QDRANT_UI_HOSTNAME}
+        - ${LANGFUSE_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -180,5 +182,25 @@ spec:
                 name: docker-registry-ui
                 port:
                   number: 80
+    - host: ${QDRANT_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qdrant
+                port:
+                  number: 6333
+    - host: ${LANGFUSE_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: langfuse-web
+                port:
+                  number: 3000
 
 

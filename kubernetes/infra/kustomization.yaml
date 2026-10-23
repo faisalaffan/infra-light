@@ -20,6 +20,9 @@ resources:
   - excalidraw
   - woodpecker
   - docker-registry
+  - qdrant
+  - langfuse
   - ingress
   - networkpolicy
+  - azure-sql-edge
 

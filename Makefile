@@ -14,7 +14,7 @@ PG_USER := postgres
 db-create:
 	@[ -n "$(DB)" ] || { echo "ERROR: set DB=name"; exit 1; }
 	@echo "Creating database '$(DB)'..."
-	$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -c "CREATE DATABASE \"$(DB)\";"
+	$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -c "CREATE DATABASE \"$(DB)\" TEMPLATE template0;"
 	@echo "✓ Database '$(DB)' created"
 
 # --- PostgreSQL: list databases ----------------------------------
@@ -28,7 +28,7 @@ db-drop:
 	@echo "WARNING: This will drop database '$(DB)' and all its data."
 	@read -p "Type '$(DB)' to confirm: " confirm; \
 	[ "$$confirm" = "$(DB)" ] || { echo "Aborted."; exit 1; }
-	$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -c "DROP DATABASE \"$(DB)\";"
+	$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -c "DROP DATABASE \"$(DB)\" WITH (FORCE);"
 	@echo "✓ Database '$(DB)' dropped"
 
 # --- help --------------------------------------------------------
@@ -141,6 +141,75 @@ TARGET ?= k3s_server
 baremetal-restore:
 	@echo "Restoring Baremetal K3s on target '$(TARGET)' from B2 snapshots..."
 	cd ansible && ansible-playbook playbooks/failover-restore.yml -i inventory/hosts.yml -e "target_hosts=$(TARGET)"
+
+# ============================================================
+# Qdrant Vector Database Management
+# ============================================================
+QDRANT_POD := qdrant-0
+
+.PHONY: qdrant-health qdrant-collections qdrant-help
+
+qdrant-health:
+	@IP=$$($(KUBECTL) get svc qdrant -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	curl -s "http://$$IP:6333/healthz" || true
+	@echo ""
+
+qdrant-collections:
+	@IP=$$($(KUBECTL) get svc qdrant -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	KEY=$$(grep -E "^QDRANT_API_KEY=" .env 2>/dev/null | cut -d'=' -f2-); \
+	curl -s -H "api-key: $$KEY" "http://$$IP:6333/collections" || true
+	@echo ""
+
+qdrant-help:
+	@echo "Qdrant Vector Database Management (k3s infra/qdrant-0)"
+	@echo ""
+	@echo "  make qdrant-health         Check Qdrant health status"
+	@echo "  make qdrant-collections    List all collections in Qdrant"
+
+# ============================================================
+# Langfuse & ClickHouse Management
+# ============================================================
+.PHONY: langfuse-status langfuse-health langfuse-backup langfuse-flush-traces langfuse-logs langfuse-help
+
+langfuse-status:
+	@echo "--- Langfuse Pods ---"
+	@$(KUBECTL) get pods -n $(NAMESPACE) -l 'app in (langfuse-web, langfuse-worker, clickhouse)'
+	@echo ""
+	@echo "--- Langfuse CronJobs ---"
+	@$(KUBECTL) get cronjobs -n $(NAMESPACE) | grep -E "langfuse" || true
+
+langfuse-health:
+	@echo "Checking Langfuse Web health..."
+	@IP=$$($(KUBECTL) get svc langfuse-web -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	curl -s "http://$$IP:3000/api/public/health" || true; echo ""
+	@echo "Checking ClickHouse ping..."
+	@CH_IP=$$($(KUBECTL) get svc clickhouse -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	curl -s "http://$$CH_IP:8123/ping" || true; echo ""
+
+langfuse-backup:
+	@echo "Triggering manual Langfuse backup job..."
+	$(KUBECTL) create job --from=cronjob/langfuse-backup langfuse-backup-manual-$$(date +%s) -n $(NAMESPACE)
+
+langfuse-flush-traces:
+	@echo "Triggering manual Langfuse 7-day trace retention flush job..."
+	$(KUBECTL) create job --from=cronjob/langfuse-trace-flush langfuse-trace-flush-manual-$$(date +%s) -n $(NAMESPACE)
+
+langfuse-logs:
+	@echo "--- Langfuse Web Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=langfuse-web --tail=50 || true
+	@echo ""
+	@echo "--- Langfuse Worker Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=langfuse-worker --tail=50 || true
+
+langfuse-help:
+	@echo "Langfuse LLM Observability Management (k3s infra)"
+	@echo ""
+	@echo "  make langfuse-status        Show status of Langfuse pods & cronjobs"
+	@echo "  make langfuse-health        Check health endpoints of Web and ClickHouse"
+	@echo "  make langfuse-backup        Trigger manual daily backup job"
+	@echo "  make langfuse-flush-traces  Trigger manual 7-day trace retention flush"
+	@echo "  make langfuse-logs          Show recent logs from Web and Worker"
+
 
 
 
