@@ -96,6 +96,7 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     if [[ -n "${FAILOVER_K3S_VERSION:-${K3S_VERSION:-}}" ]]; then
         export TF_VAR_k3s_version="${FAILOVER_K3S_VERSION:-${K3S_VERSION:-v1.30.2+k3s1}}"
     fi
+    export TF_VAR_k3s_token="${K3S_TOKEN:-k3s-local-dev-token-2026}"
 fi
 
 echo "=========================================================="

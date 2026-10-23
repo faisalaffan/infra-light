@@ -53,6 +53,13 @@ variable "k3s_version" {
   default     = "v1.30.2+k3s1"
 }
 
+variable "k3s_token" {
+  description = "K3s cluster token"
+  type        = string
+  default     = "k3s-local-dev-token-2026"
+  sensitive   = true
+}
+
 variable "b2_endpoint" {
   description = "Backblaze B2 S3 endpoint URL"
   type        = string

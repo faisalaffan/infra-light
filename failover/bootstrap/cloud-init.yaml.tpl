@@ -28,6 +28,7 @@ write_files:
     content: |
       ENVIRONMENT="${environment}"
       K3S_VERSION="${k3s_version}"
+      K3S_TOKEN="${k3s_token}"
       B2_ENDPOINT="${b2_endpoint}"
       B2_BUCKET="${b2_bucket}"
       B2_APPLICATION_KEY_ID="${b2_key_id}"
@@ -58,6 +59,7 @@ packages:
   - ca-certificates
   - unzip
   - awscli
+  - bzip2
   - restic
 
 runcmd:

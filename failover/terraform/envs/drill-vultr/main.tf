@@ -28,6 +28,7 @@ locals {
   user_data_rendered = templatefile("${path.module}/../../../bootstrap/cloud-init.yaml.tpl", {
     environment                = local.environment
     k3s_version                = var.k3s_version
+    k3s_token                  = var.k3s_token
     b2_endpoint                = var.b2_endpoint
     b2_bucket                  = var.b2_bucket
     b2_key_id                  = var.b2_key_id
