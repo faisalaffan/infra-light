@@ -37,8 +37,8 @@ locals {
     ssh_public_key             = var.ssh_public_key
     gitops_repo_url            = var.gitops_repo_url
     gitops_branch              = var.gitops_branch
-    restore_script_content     = indent(4, file("${path.module}/../../../bootstrap/restore.sh"))
-    healthcheck_script_content = indent(4, file("${path.module}/../../../bootstrap/healthcheck.sh"))
+    restore_script_content     = indent(6, file("${path.module}/../../../bootstrap/restore.sh"))
+    healthcheck_script_content = indent(6, file("${path.module}/../../../bootstrap/healthcheck.sh"))
   })
 }
 

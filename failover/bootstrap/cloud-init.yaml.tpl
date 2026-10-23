@@ -41,13 +41,13 @@ write_files:
     permissions: '0750'
     owner: root:root
     content: |
-${restore_script_content}
+      ${restore_script_content}
 
   - path: /usr/local/bin/healthcheck.sh
     permissions: '0750'
     owner: root:root
     content: |
-${healthcheck_script_content}
+      ${healthcheck_script_content}
 
 package_update: true
 packages:
