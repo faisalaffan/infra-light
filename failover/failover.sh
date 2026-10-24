@@ -9,7 +9,7 @@ TERRAFORM_DIR="$SCRIPT_DIR/terraform"
 
 ACTION="${1:-plan}"          # plan, apply, destroy, init, output
 ENV="${2:-drill}"            # drill, prod
-PROVIDER="${3:-vultr}"       # vultr, aws
+PROVIDER="${3:-tencent}"       # tencent (default), vultr, aws
 
 # Auto-load secrets from root .env if present
 ROOT_ENV_FILE="$SCRIPT_DIR/../.env"

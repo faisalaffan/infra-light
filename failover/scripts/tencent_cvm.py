@@ -133,7 +133,7 @@ def main():
         sys.exit(1)
         
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    target_instance_id = sys.argv[2] if len(sys.argv) > 2 else ""
+    target_instance_id = sys.argv[2] if len(sys.argv) > 2 else os.getenv("TENCENT_INSTANCE_ID", "").strip()
     
     if cmd in ("status", "describe", "list"):
         payload = {}
