@@ -92,6 +92,42 @@ async function handleApiRoutes(request, env, url) {
         }
       }
 
+      // Query Tencent CVM live status if credentials are configured
+      let cvm = {
+        configured: false,
+        status: "UNKNOWN",
+        instanceId: env.TENCENT_INSTANCE_ID || null,
+        region: env.TENCENTCLOUD_REGION || "ap-singapore"
+      };
+
+      if (env.TENCENTCLOUD_SECRET_ID && env.TENCENTCLOUD_SECRET_KEY) {
+        cvm.configured = true;
+        try {
+          const region = env.TENCENTCLOUD_REGION || "ap-singapore";
+          const queryPayload = env.TENCENT_INSTANCE_ID ? { InstanceIds: [env.TENCENT_INSTANCE_ID] } : { Limit: 5 };
+          const cvmData = await callTencentCvmApi(
+            env.TENCENTCLOUD_SECRET_ID,
+            env.TENCENTCLOUD_SECRET_KEY,
+            region,
+            "DescribeInstances",
+            queryPayload
+          );
+          const instances = cvmData.Response?.InstanceSet || [];
+          if (instances.length > 0) {
+            const inst = instances[0];
+            cvm.status = inst.InstanceState; // "RUNNING", "STOPPED", etc.
+            cvm.instanceId = inst.InstanceId;
+            cvm.instanceName = inst.InstanceName;
+            cvm.publicIp = inst.PublicIpAddresses?.[0] || null;
+            cvm.zone = inst.Placement?.Zone || null;
+          } else {
+            cvm.status = "NOT_FOUND";
+          }
+        } catch (e) {
+          cvm.error = e.message;
+        }
+      }
+
       return jsonResponse({
         masterRecord: MASTER_RECORD,
         currentOrigin,
@@ -100,6 +136,7 @@ async function handleApiRoutes(request, env, url) {
         recordId: record ? record.id : null,
         homelabUuid: HOMELAB_UUID ? `${HOMELAB_UUID.substring(0, 8)}...` : null,
         tencentUuid: TENCENT_UUID ? `${TENCENT_UUID.substring(0, 8)}...` : null,
+        cvm,
         timestamp: new Date().toISOString(),
       });
     } catch (err) {
@@ -176,7 +213,7 @@ async function handleApiRoutes(request, env, url) {
     }
   }
 
-  // 3. POST /api/compute - Trigger Start/Stop Tencent CVM via GitHub Actions
+  // 3. POST /api/compute - Start/Stop Tencent CVM (Direct API or GitHub Actions fallback)
   if (url.pathname === "/api/compute" && request.method === "POST") {
     try {
       const body = await request.json().catch(() => ({}));
@@ -185,42 +222,112 @@ async function handleApiRoutes(request, env, url) {
         return jsonResponse({ error: "Invalid action. Use 'start' or 'stop'" }, 400);
       }
 
+      // Priority 1: Direct Tencent Cloud API (Instant ~1s, $0 stopped mode guaranteed)
+      if (env.TENCENTCLOUD_SECRET_ID && env.TENCENTCLOUD_SECRET_KEY) {
+        const region = env.TENCENTCLOUD_REGION || "ap-singapore";
+        let instanceId = env.TENCENT_INSTANCE_ID;
+
+        if (!instanceId) {
+          const listRes = await callTencentCvmApi(
+            env.TENCENTCLOUD_SECRET_ID,
+            env.TENCENTCLOUD_SECRET_KEY,
+            region,
+            "DescribeInstances",
+            { Limit: 5 }
+          );
+          const insts = listRes.Response?.InstanceSet || [];
+          if (insts.length === 0) {
+            return jsonResponse({ error: "No Tencent CVM instances found in region " + region }, 404);
+          }
+          instanceId = insts[0].InstanceId;
+        }
+
+        if (action === "start") {
+          const startRes = await callTencentCvmApi(
+            env.TENCENTCLOUD_SECRET_ID,
+            env.TENCENTCLOUD_SECRET_KEY,
+            region,
+            "StartInstances",
+            { InstanceIds: [instanceId] }
+          );
+          if (startRes.Response?.Error) {
+            return jsonResponse({ error: startRes.Response.Error.Message }, 502);
+          }
+          return jsonResponse({
+            success: true,
+            method: "direct_api",
+            message: `Tencent CVM ${instanceId} starting (~30s to k3s ready)...`,
+            instanceId,
+            action: "START",
+            timestamp: new Date().toISOString()
+          });
+        } else if (action === "stop") {
+          // StopType: SOFT_FIRST, StoppedMode: STOP_CHARGING for zero compute billing!
+          const stopRes = await callTencentCvmApi(
+            env.TENCENTCLOUD_SECRET_ID,
+            env.TENCENTCLOUD_SECRET_KEY,
+            region,
+            "StopInstances",
+            {
+              InstanceIds: [instanceId],
+              StopType: "SOFT_FIRST",
+              StoppedMode: "STOP_CHARGING"
+            }
+          );
+          if (stopRes.Response?.Error) {
+            return jsonResponse({ error: stopRes.Response.Error.Message }, 502);
+          }
+          return jsonResponse({
+            success: true,
+            method: "direct_api",
+            message: `Tencent CVM ${instanceId} stopped with STOP_CHARGING ($0 compute)...`,
+            instanceId,
+            action: "STOP",
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+
+      // Priority 2: GitHub Actions Workflow Dispatch fallback (if GITHUB_PAT configured)
       const GITHUB_REPO = env.GITHUB_REPO || "faisalaffan/infra-light";
       const GITHUB_PAT = env.GITHUB_PAT;
 
-      if (!GITHUB_PAT) {
-        return jsonResponse({ error: "GITHUB_PAT is not configured in worker secrets" }, 500);
-      }
-
-      const ghResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/dr-failover.yml/dispatches`, {
-        method: "POST",
-        headers: {
-          "Accept": "application/vnd.github.v3+json",
-          "Authorization": `Bearer ${GITHUB_PAT}`,
-          "User-Agent": "DR-Failover-Worker-Controller"
-        },
-        body: JSON.stringify({
-          ref: "main",
-          inputs: {
-            action: action,
-            environment: "prod",
-            provider: "tencent"
-          }
-        })
-      });
-
-      if (ghResp.status === 204) {
-        return jsonResponse({
-          success: true,
-          message: `GitHub Action dispatched: ${action.toUpperCase()} Tencent CVM`,
-          action,
-          repo: GITHUB_REPO,
-          timestamp: new Date().toISOString()
+      if (GITHUB_PAT) {
+        const ghResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/dr-failover.yml/dispatches`, {
+          method: "POST",
+          headers: {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": `Bearer ${GITHUB_PAT}`,
+            "User-Agent": "DR-Failover-Worker-Controller"
+          },
+          body: JSON.stringify({
+            ref: env.GIT_BRANCH || "dev",
+            inputs: {
+              action: action,
+              environment: "prod",
+              provider: "tencent"
+            }
+          })
         });
-      } else {
-        const errDetail = await ghResp.text();
-        return jsonResponse({ error: "GitHub dispatch failed", status: ghResp.status, details: errDetail }, 502);
+
+        if (ghResp.status === 204) {
+          return jsonResponse({
+            success: true,
+            method: "github_actions",
+            message: `GitHub Action dispatched: ${action.toUpperCase()} Tencent CVM`,
+            action,
+            repo: GITHUB_REPO,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          const errDetail = await ghResp.text();
+          return jsonResponse({ error: "GitHub dispatch failed", status: ghResp.status, details: errDetail }, 502);
+        }
       }
+
+      return jsonResponse({
+        error: "Neither Tencent Cloud API credentials (TENCENTCLOUD_SECRET_ID/KEY) nor GITHUB_PAT are configured in Worker secrets."
+      }, 500);
     } catch (err) {
       return jsonResponse({ error: err.message }, 500);
     }
@@ -237,6 +344,94 @@ function jsonResponse(data, status = 200) {
       "Access-Control-Allow-Origin": "*",
     },
   });
+}
+
+/**
+ * Tencent Cloud TC3-HMAC-SHA256 Implementation for Cloudflare Workers (Native Web Crypto API)
+ */
+async function sha256Hex(str) {
+  const enc = new TextEncoder();
+  const hash = await crypto.subtle.digest("SHA-256", enc.encode(str));
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hmacRaw(keyBufferOrCryptoKey, dataStr) {
+  const enc = new TextEncoder();
+  let cryptoKey;
+  if (keyBufferOrCryptoKey instanceof CryptoKey) {
+    cryptoKey = keyBufferOrCryptoKey;
+  } else {
+    cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      typeof keyBufferOrCryptoKey === "string" ? enc.encode(keyBufferOrCryptoKey) : keyBufferOrCryptoKey,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+  }
+  return await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(dataStr));
+}
+
+async function getTencentSigningKey(secretKey, date, service) {
+  const kDate = await hmacRaw("TC3" + secretKey, date);
+  const kService = await hmacRaw(kDate, service);
+  const kSigning = await hmacRaw(kService, "tc3_request");
+  return kSigning;
+}
+
+async function hmacHex(keyBuffer, dataStr) {
+  const sigBuffer = await hmacRaw(keyBuffer, dataStr);
+  return Array.from(new Uint8Array(sigBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function callTencentCvmApi(secretId, secretKey, region, action, payload = {}) {
+  const service = "cvm";
+  const host = "cvm.tencentcloudapi.com";
+  const version = "2017-03-12";
+  const algorithm = "TC3-HMAC-SHA256";
+  const payloadStr = JSON.stringify(payload);
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
+
+  const httpRequestMethod = "POST";
+  const canonicalUri = "/";
+  const canonicalQuerystring = "";
+  const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-tc-action:${action.toLowerCase()}\n`;
+  const signedHeaders = "content-type;host;x-tc-action";
+  const hashedRequestPayload = await sha256Hex(payloadStr);
+
+  const canonicalRequest = `${httpRequestMethod}\n${canonicalUri}\n${canonicalQuerystring}\n${canonicalHeaders}\n${signedHeaders}\n${hashedRequestPayload}`;
+  const credentialScope = `${date}/${service}/tc3_request`;
+  const hashedCanonicalRequest = await sha256Hex(canonicalRequest);
+  const stringToSign = `${algorithm}\n${timestamp}\n${credentialScope}\n${hashedCanonicalRequest}`;
+
+  const secretSigning = await getTencentSigningKey(secretKey, date, service);
+  const signature = await hmacHex(secretSigning, stringToSign);
+
+  const authorization = `${algorithm} Credential=${secretId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const headers = {
+    "Authorization": authorization,
+    "Content-Type": "application/json; charset=utf-8",
+    "Host": host,
+    "X-TC-Action": action,
+    "X-TC-Timestamp": String(timestamp),
+    "X-TC-Version": version,
+    "X-TC-Region": region,
+  };
+
+  const resp = await fetch(`https://${host}`, {
+    method: "POST",
+    headers,
+    body: payloadStr
+  });
+
+  return await resp.json();
 }
 
 /**
@@ -555,6 +750,14 @@ function handleDashboardUI(request, env) {
           <code id="targetContentText" style="color: #67e8f9;">Loading...</code>
         </div>
 
+        <div class="status-row" style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.08);">
+          <span class="status-label">Tencent CVM ($0 Idle)</span>
+          <div id="cvmBadge" class="status-badge unknown" style="padding: 2px 8px; font-size: 11px;">
+            <span class="pulse-dot"></span>
+            <span id="cvmText">Checking...</span>
+          </div>
+        </div>
+
         <div class="status-row" style="padding-top: 4px;">
           <span style="font-size: 11px; color: #64748b;">Cloudflare Proxy: <b style="color: #fb923c;">🟧 Proxied</b></span>
           <button onclick="fetchStatus()" style="background: none; border: none; color: #60a5fa; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
@@ -581,7 +784,8 @@ function handleDashboardUI(request, env) {
       <div class="divider"></div>
 
       <div class="status-row" style="margin-bottom: 10px; margin-top: 6px;">
-        <span class="status-label">Kontrol Compute CVM (GitHub Actions)</span>
+        <span class="status-label">Kontrol Compute CVM ($0 Idle)</span>
+        <span id="cvmInfoText" style="font-size: 11px; color: #64748b;">Standby</span>
       </div>
       <div class="btn-row">
         <button id="btnStartCvm" class="btn btn-secondary" onclick="confirmCompute('start')">
@@ -671,6 +875,29 @@ function handleDashboardUI(request, env) {
 
         document.getElementById("masterRecordText").innerText = data.masterRecord;
         document.getElementById("targetContentText").innerText = data.targetContent;
+
+        // Update live CVM status
+        if (data.cvm) {
+          const cvmBadge = document.getElementById("cvmBadge");
+          const cvmText = document.getElementById("cvmText");
+          const cvmInfoText = document.getElementById("cvmInfoText");
+          const st = data.cvm.status || "UNKNOWN";
+
+          if (st === "RUNNING") {
+            cvmBadge.className = "status-badge homelab";
+            cvmText.innerText = "🟢 RUNNING";
+            if (cvmInfoText) cvmInfoText.innerText = data.cvm.publicIp ? \`IP: \${data.cvm.publicIp}\` : "Active";
+          } else if (st === "STOPPED") {
+            cvmBadge.className = "status-badge unknown";
+            cvmText.innerText = "🛑 STOPPED ($0)";
+            if (cvmInfoText) cvmInfoText.innerText = "$0 Billing (Standby)";
+          } else {
+            cvmBadge.className = "status-badge tencent";
+            cvmText.innerText = st;
+            if (cvmInfoText) cvmInfoText.innerText = "Processing...";
+          }
+        }
+
         log("Status di-refresh: " + data.currentOrigin);
       } catch (err) {
         log("❌ Gagal menghubungi worker: " + err.message);
@@ -712,12 +939,12 @@ function handleDashboardUI(request, env) {
     }
 
     async function confirmCompute(action) {
-      const label = action === "start" ? "MENYALAKAN (Start)" : "MEMATIKAN (Stop $0)";
-      if (!confirm(\`Yakin ingin \${label} instance Tencent Cloud CVM via GitHub Actions?\`)) {
+      const label = action === "start" ? "MENYALAKAN (Start)" : "MEMATIKAN (Stop $0 - STOP_CHARGING)";
+      if (!confirm(\`Yakin ingin \${label} instance Tencent Cloud CVM?\`)) {
         return;
       }
 
-      log(\`Dispatch GitHub Actions: \${action.toUpperCase()} CVM...\`);
+      log(\`Memproses perintah \${action.toUpperCase()} CVM...\`);
       try {
         const resp = await fetch("/api/compute", {
           method: "POST",
@@ -729,10 +956,12 @@ function handleDashboardUI(request, env) {
         });
         const res = await resp.json();
         if (res.success) {
-          log(\`✔ GitHub Action \${action.toUpperCase()} berhasil dipicu!\`);
-          alert(\`Perintah \${action.toUpperCase()} CVM telah dikirim ke GitHub Actions runner.\`);
+          log(\`✔ Sukses: \${res.message}\`);
+          alert(\`Sukses! \${res.message}\`);
+          setTimeout(fetchStatus, 3000);
         } else {
           log("❌ Gagal compute: " + (res.error || JSON.stringify(res)));
+          alert("Gagal compute: " + (res.error || "Unknown error"));
         }
       } catch (err) {
         log("❌ Error: " + err.message);

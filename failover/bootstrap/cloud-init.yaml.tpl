@@ -10,13 +10,6 @@ ssh_authorized_keys:
 %{ endif ~}
 
 write_files:
-%{ if ssh_public_key != "" ~}
-  - path: /root/.ssh/authorized_keys
-    permissions: '0600'
-    owner: root:root
-    content: |
-      ${ssh_public_key}
-%{ endif ~}
   - path: /var/log/failover/restore.log
     permissions: '0644'
     owner: root:root
@@ -41,20 +34,20 @@ write_files:
   - path: /usr/local/bin/restore.sh
     permissions: '0750'
     owner: root:root
-    content: |
-      ${restore_script_content}
+    encoding: gz+b64
+    content: ${restore_script_b64gz}
 
   - path: /usr/local/bin/healthcheck.sh
     permissions: '0750'
     owner: root:root
-    content: |
-      ${healthcheck_script_content}
+    encoding: gz+b64
+    content: ${healthcheck_script_b64gz}
 
   - path: /usr/local/bin/failover-startup-daemon.sh
     permissions: '0750'
     owner: root:root
-    content: |
-      ${startup_daemon_script_content}
+    encoding: gz+b64
+    content: ${startup_daemon_script_b64gz}
 
   - path: /etc/systemd/system/failover-startup.service
     permissions: '0644'

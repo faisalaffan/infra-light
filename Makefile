@@ -132,6 +132,10 @@ failover-start-tencent:
 failover-stop-tencent:
 	@python3 ./failover/scripts/tencent_cvm.py stop
 
+# --- 📱 DR Mobile Dashboard (Cloudflare Worker) ---
+failover-worker-deploy:
+	@bash ./failover/failover.sh worker-deploy
+
 # --- 🚀 Infrastructure Provisioning (Terraform) ---
 failover-plan:
 	@bash ./failover/failover.sh plan $(ENV) $(PROVIDER)
@@ -157,6 +161,7 @@ failover-help:
 	@echo "  # ☁️ Tencent Standby CVM Lifecycle (\$$0 Idle Compute):"
 	@echo "  make failover-start-tencent     Start Tencent CVM instance (boot time ~30s)"
 	@echo "  make failover-stop-tencent      Stop Tencent CVM instance (STOP_CHARGING - \$$0 compute)"
+	@echo "  make failover-worker-deploy     Deploy/Redeploy DR Mobile Dashboard to Cloudflare Workers"
 	@echo ""
 	@echo "  # 🚀 Infrastructure Provisioning via Terraform:"
 	@echo "  make failover-plan [ENV=drill|prod] [PROVIDER=vultr|aws|tencent]"

@@ -129,6 +129,60 @@ if [[ "$ACTION" == "auto-setup" ]]; then
     exit 0
 fi
 
+if [[ "$ACTION" == "worker-deploy" || "$ACTION" == "deploy-worker" ]]; then
+    WORKER_DIR="$SCRIPT_DIR/cloudflare-worker"
+    if [[ ! -d "$WORKER_DIR" ]]; then
+        echo "❌ Directory not found: $WORKER_DIR" >&2
+        exit 1
+    fi
+    echo "=========================================================="
+    echo "📱 Deploying Disaster Recovery Mobile Dashboard (Worker)"
+    echo "=========================================================="
+    cd "$WORKER_DIR"
+    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
+    export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
+    export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
+
+    npx -y wrangler deploy
+
+    # 🔐 Automatically sync secrets from root .env to Cloudflare Worker
+    echo "=========================================================="
+    echo "🔐 Syncing Secrets from .env to Cloudflare Worker..."
+    echo "=========================================================="
+
+    if [[ -n "${CLOUDFLARE_API_KEY:-}" ]]; then
+        echo "🔐 Uploading CLOUDFLARE_API_KEY secret to Worker..."
+        echo -n "$CLOUDFLARE_API_KEY" | npx -y wrangler secret put CLOUDFLARE_API_KEY
+    fi
+
+    if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+        echo "🔐 Uploading CLOUDFLARE_API_TOKEN secret to Worker..."
+        echo -n "$CLOUDFLARE_API_TOKEN" | npx -y wrangler secret put CLOUDFLARE_API_TOKEN
+    fi
+
+    if [[ -n "${TENCENTCLOUD_SECRET_ID:-}" ]]; then
+        echo "🔐 Uploading TENCENTCLOUD_SECRET_ID secret to Worker..."
+        echo -n "$TENCENTCLOUD_SECRET_ID" | npx -y wrangler secret put TENCENTCLOUD_SECRET_ID
+    fi
+
+    if [[ -n "${TENCENTCLOUD_SECRET_KEY:-}" ]]; then
+        echo "🔐 Uploading TENCENTCLOUD_SECRET_KEY secret to Worker..."
+        echo -n "$TENCENTCLOUD_SECRET_KEY" | npx -y wrangler secret put TENCENTCLOUD_SECRET_KEY
+    fi
+
+    if [[ -n "${GITHUB_PAT:-}" ]]; then
+        echo "🔐 Uploading GITHUB_PAT secret to Worker..."
+        echo -n "$GITHUB_PAT" | npx -y wrangler secret put GITHUB_PAT
+    else
+        echo "ℹ️  GITHUB_PAT is not set in .env. Worker will use direct Tencent Cloud API for instant start/stop ($0 idle compute)."
+    fi
+
+    echo "=========================================================="
+    echo "✅ DR Mobile Dashboard successfully deployed & configured!"
+    echo "=========================================================="
+    exit 0
+fi
+
 # Determine target directory for Terraform actions
 TARGET_ENV_DIR=""
 if [[ "$PROVIDER" == "vultr" ]]; then

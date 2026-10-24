@@ -37,8 +37,9 @@ locals {
     b2_prefix                  = var.b2_prefix
     gitops_repo_url            = var.gitops_repo_url
     gitops_branch              = var.gitops_branch
-    restore_script_content     = indent(6, file("${path.module}/../../bootstrap/restore.sh"))
-    healthcheck_script_content = indent(6, file("${path.module}/../../bootstrap/healthcheck.sh"))
+    restore_script_b64gz        = base64gzip(file("${path.module}/../../bootstrap/restore.sh"))
+    healthcheck_script_b64gz    = base64gzip(file("${path.module}/../../bootstrap/healthcheck.sh"))
+    startup_daemon_script_b64gz = base64gzip(file("${path.module}/../../bootstrap/failover-startup-daemon.sh"))
   })
 }
 

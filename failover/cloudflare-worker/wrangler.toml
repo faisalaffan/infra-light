@@ -2,6 +2,13 @@ name = "dr-failover-controller"
 main = "worker.js"
 compatibility_date = "2026-10-24"
 
+workers_dev = true
+preview_urls = true
+
+routes = [
+  { pattern = "dr.faisalaffan.com", custom_domain = true }
+]
+
 [vars]
 CLOUDFLARE_ZONE_ID = "6e31dd491d4cdeab97e4e3ec76b61a28"
 CLOUDFLARE_MASTER_ORIGIN_RECORD = "origin.homelab.faisalaffan.com"
@@ -10,6 +17,8 @@ CLOUDFLARE_TENCENT_TUNNEL_UUID = "bb50ff1e-4879-49d3-b4ad-7817c1f0caa4"
 CLOUDFLARE_EMAIL = "faisallionel@gmail.com"
 GITHUB_REPO = "faisalaffan/infra-light"
 ADMIN_PIN = "2026"
+TENCENTCLOUD_REGION = "ap-singapore"
+TENCENT_INSTANCE_ID = "ins-nlgdknnm"
 
 # Secrets to set via `npx wrangler secret put`:
 # - CLOUDFLARE_API_KEY (or CLOUDFLARE_API_TOKEN)
