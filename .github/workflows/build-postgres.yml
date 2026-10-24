@@ -36,7 +36,7 @@ jobs:
             type=sha,prefix=
 
       - name: Build & Push (multi-platform)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: kubernetes/builds/postgres/
           platforms: linux/amd64,linux/arm64
