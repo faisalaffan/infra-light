@@ -45,19 +45,37 @@ until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
 done
 log "K3s node is Ready."
 
+# Ensure Traefik is removed so ingress-nginx always has ports 80/443
+rm -f /var/lib/rancher/k3s/server/manifests/traefik.yaml 2>/dev/null || true
+kubectl delete helmchart traefik traefik-crd -n kube-system 2>/dev/null || true
+kubectl delete daemonset -n kube-system -l svccontroller.k3s.cattle.io/svcname=traefik 2>/dev/null || true
+
 # 3. Run or Update Disaster Recovery Restore from Backblaze B2
 if [[ -x "/usr/local/bin/restore.sh" ]]; then
     log "Executing automated data restore & delta synchronization from Backblaze B2..."
     /usr/local/bin/restore.sh --delta >> /var/log/failover/restore.log 2>&1 || warn "Restore script reported warnings, checking data state..."
 fi
 
-# 4. Verify Health of Critical Database Services & Unseal Vault
+# 4. Open Traffic Gate (Scale cloudflared to 1) as soon as data sync completes
+if [[ -f "/etc/failover/env" ]]; then
+    set -a; source /etc/failover/env; set +a
+fi
+if [[ -n "${CLOUDFLARE_STANDBY_TUNNEL_TOKEN:-}" ]]; then
+    kubectl create secret generic tunnel-token -n infra --from-literal=token="${CLOUDFLARE_STANDBY_TUNNEL_TOKEN}" --dry-run=client -o yaml | kubectl apply -f -
+fi
+kubectl patch configmap -n ingress-nginx ingress-nginx-controller -p '{"data":{"use-forwarded-headers":"true"}}' 2>/dev/null || true
+
+log "Opening Cloudflare Traffic Gate (scaling cloudflared to 1)..."
+kubectl scale deployment cloudflared -n infra --replicas=1
+kubectl rollout restart deployment cloudflared -n infra 2>/dev/null || true
+
+# 5. Verify Health of Critical Database Services & Unseal Vault
 log "Verifying readiness of core stateful services..."
 SERVICES=("postgres" "mysql" "minio" "mongodb" "redis")
 for svc in "${SERVICES[@]}"; do
     log "Checking health of $svc..."
-    kubectl rollout status "statefulset/$svc" -n infra --timeout=120s 2>/dev/null || \
-    kubectl rollout status "deployment/$svc" -n infra --timeout=120s 2>/dev/null || \
+    kubectl rollout status "statefulset/$svc" -n infra --timeout=25s 2>/dev/null || \
+    kubectl rollout status "deployment/$svc" -n infra --timeout=25s 2>/dev/null || \
     warn "Service $svc is still stabilizing..."
 done
 
@@ -89,20 +107,7 @@ fi
 # Ensure ResourceQuota in resolva allows all replicas
 kubectl patch resourcequota prod-quota -n resolva -p '{"spec":{"hard":{"limits.memory":"16Gi","requests.memory":"8Gi"}}}' 2>/dev/null || true
 
-
-# 5. Open Traffic Gate (Scale cloudflared to 1)
-# Ensure Standby Cloudflare Tunnel token and Nginx forwarded headers are enforced
-if [[ -f "/etc/failover/env" ]]; then
-    set -a; source /etc/failover/env; set +a
-fi
-if [[ -n "${CLOUDFLARE_STANDBY_TUNNEL_TOKEN:-}" ]]; then
-    kubectl create secret generic tunnel-token -n infra --from-literal=token="${CLOUDFLARE_STANDBY_TUNNEL_TOKEN}" --dry-run=client -o yaml | kubectl apply -f -
-fi
-kubectl patch configmap -n ingress-nginx ingress-nginx-controller -p '{"data":{"use-forwarded-headers":"true"}}' 2>/dev/null || true
-
-log "Stateful services verified. Opening Cloudflare Traffic Gate (scaling cloudflared to 1)..."
-kubectl scale deployment cloudflared -n infra --replicas=1
-kubectl rollout status deployment cloudflared -n infra --timeout=60s || warn "cloudflared rollout took longer than 60s"
+kubectl rollout status deployment cloudflared -n infra --timeout=45s || warn "cloudflared rollout took longer than 45s"
 
 log "=== Automated Failover Sequence COMPLETED successfully ✓ ==="
 log "Traffic is now actively flowing through this Cloud Standby node."

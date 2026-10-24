@@ -63,11 +63,14 @@ RESTIC_BIN="$(command -v /usr/local/bin/restic || command -v restic || echo 'res
 RESTIC_REPO="s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs"
 export RESTIC_REPOSITORY="$RESTIC_REPO"
 export RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
+export HOME="${HOME:-/root}"
+export RESTIC_CACHE_DIR="/var/cache/restic"
+mkdir -p "$RESTIC_CACHE_DIR"
 
 DB_RESTORED=false
 
-# 2. Check and restore K3s Database (SQLite state.db) from Restic
-if [[ -n "$B2_BUCKET" && -n "$B2_ENDPOINT" && -n "$AWS_ACCESS_KEY_ID" && -n "${RESTIC_PASSWORD:-}" ]]; then
+# 2. Check and restore K3s Database (SQLite state.db) from Restic (Only on initial full restore)
+if [[ "$RESTORE_MODE" != "--delta" || ! -f "/etc/rancher/k3s/k3s.yaml" ]] && [[ -n "$B2_BUCKET" && -n "$B2_ENDPOINT" && -n "$AWS_ACCESS_KEY_ID" && -n "${RESTIC_PASSWORD:-}" ]]; then
     echo "$LOG_PREFIX Checking for K3s database snapshots in B2 Restic repository..."
     if "$RESTIC_BIN" snapshots --tag k3s-db --latest 1 &>/dev/null; then
         echo "$LOG_PREFIX Found K3s DB snapshot! Restoring /k3s-db from Backblaze B2..."
@@ -165,42 +168,45 @@ until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
 done
 echo "$LOG_PREFIX K3s cluster service is up."
 
-# Scale down stateful services in delta mode to avoid file locking during rsync/restic
-if [[ "$RESTORE_MODE" == "--delta" ]] && command -v kubectl &>/dev/null; then
-    echo "$LOG_PREFIX Scaling down stateful services in infra namespace to safely sync disk data..."
-    kubectl scale statefulset postgres mysql minio redis vault redpanda -n infra --replicas=0 2>/dev/null || true
-    sleep 3
-fi
-
 # 4. Restore Persistent Volumes via Restic from Backblaze B2
+LAST_PV_SNAP_FILE="/var/lib/failover_last_pv_snapshot"
 if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PASSWORD:-}" ]]; then
-    echo "$LOG_PREFIX Restoring Persistent Volumes from B2 Restic repository ($RESTIC_REPO)..."
-    if "$RESTIC_BIN" snapshots --tag k3s-pvs --latest 1 &>/dev/null || "$RESTIC_BIN" snapshots --latest 1 &>/dev/null; then
-        mkdir -p /var/lib/rancher/k3s/storage
-        TEMP_PV_RESTORE="/tmp/restic-pvs-restore"
-        rm -rf "$TEMP_PV_RESTORE" && mkdir -p "$TEMP_PV_RESTORE"
-        
-        echo "$LOG_PREFIX Restoring latest PV snapshot from Backblaze B2..."
-        "$RESTIC_BIN" restore latest --tag k3s-pvs --target "$TEMP_PV_RESTORE" || "$RESTIC_BIN" restore latest --target "$TEMP_PV_RESTORE"
-        
-        if [[ -d "$TEMP_PV_RESTORE/storage" ]]; then
-            echo "$LOG_PREFIX Syncing restored volumes from /storage to /var/lib/rancher/k3s/storage..."
-            rsync -a "$TEMP_PV_RESTORE/storage/" /var/lib/rancher/k3s/storage/
-        elif [[ -d "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage" ]]; then
-            echo "$LOG_PREFIX Syncing restored volumes from /var/lib/rancher/k3s/storage..."
-            rsync -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/" /var/lib/rancher/k3s/storage/
+    echo "$LOG_PREFIX Checking Persistent Volumes in B2 Restic repository ($RESTIC_REPO)..."
+    LATEST_PV_ID=$("$RESTIC_BIN" snapshots --tag k3s-pvs --latest 1 --compact 2>/dev/null | awk '/^[0-9a-f]{8}/ {print $1}' | tail -n 1 || true)
+    LAST_RESTORED_ID=$(cat "$LAST_PV_SNAP_FILE" 2>/dev/null || echo "")
+
+    if [[ -n "$LATEST_PV_ID" && "$LATEST_PV_ID" == "$LAST_RESTORED_ID" && "$RESTORE_MODE" != "--force" && -d "/var/lib/rancher/k3s/storage" ]]; then
+        echo "$LOG_PREFIX Persistent Volumes are already synced with latest snapshot ($LATEST_PV_ID). Skipping full re-download ✓"
+    elif [[ -n "$LATEST_PV_ID" ]] || "$RESTIC_BIN" snapshots --latest 1 &>/dev/null; then
+        # Scale down stateful services in delta mode to avoid file locking during rsync/restic
+        if [[ "$RESTORE_MODE" == "--delta" ]] && command -v kubectl &>/dev/null; then
+            echo "$LOG_PREFIX Scaling down stateful services in infra namespace to safely sync disk data..."
+            kubectl scale statefulset postgres mysql minio redis vault redpanda -n infra --replicas=0 2>/dev/null || true
+            sleep 3
         fi
-        rm -rf "$TEMP_PV_RESTORE"
+
+        mkdir -p /var/lib/rancher/k3s/storage
+        
+        echo "$LOG_PREFIX Restoring latest PV snapshot ($LATEST_PV_ID) in-place to /var/lib/rancher/k3s/storage..."
+        "$RESTIC_BIN" restore latest --tag k3s-pvs --target /var/lib/rancher/k3s || "$RESTIC_BIN" restore latest --target /var/lib/rancher/k3s
+        
+        if [[ -d "/var/lib/rancher/k3s/var/lib/rancher/k3s/storage" ]]; then
+            rsync -a "/var/lib/rancher/k3s/var/lib/rancher/k3s/storage/" /var/lib/rancher/k3s/storage/
+            rm -rf "/var/lib/rancher/k3s/var"
+        fi
 
         # Apply necessary permissions and application-specific fixes
         echo "$LOG_PREFIX Applying volume permissions and specific directory ownerships..."
         chmod -R 777 /var/lib/rancher/k3s/storage 2>/dev/null || true
+        chmod 0700 /var/lib/rancher/k3s/storage/*postgres* 2>/dev/null || true
+        chown -R 999:999 /var/lib/rancher/k3s/storage/*postgres* /var/lib/rancher/k3s/storage/*mysql* 2>/dev/null || true
         chown -R 1001:1001 /var/lib/rancher/k3s/storage/*mongodb* 2>/dev/null || true
         chown -R 65532:65532 /var/lib/rancher/k3s/storage/*minio* 2>/dev/null || true
 
         # Clean empty parts in VictoriaMetrics
         find /var/lib/rancher/k3s/storage/*victoriametrics* -mindepth 2 -type d -empty -delete 2>/dev/null || true
 
+        [[ -n "$LATEST_PV_ID" ]] && echo "$LATEST_PV_ID" > "$LAST_PV_SNAP_FILE"
         echo "$LOG_PREFIX Persistent Volumes restored successfully from Backblaze B2 ✓"
     else
         echo "$LOG_PREFIX [WARN] No Restic PV snapshots found in $RESTIC_REPO. Proceeding."

@@ -145,14 +145,19 @@ failback-quick:
 	@bash ./scripts/failback-homelab.sh --quick
 
 drill-stop-homelab:
-	@echo "🧪 [DRILL] Mematikan K3s di Homelab untuk simulasi server mati..."
+	@echo "🧪 [DRILL] Memutus Cloudflare Tunnel & menghentikan K3s di Homelab..."
+	@$(KUBECTL) scale deployment cloudflared -n $(NAMESPACE) --replicas=0 2>/dev/null || true
 	sudo systemctl stop k3s
-	@echo "✓ K3s Homelab dihentikan. Silakan buka https://dr.faisalaffan.com untuk beralih ke Cloud!"
+	sudo pkill -f "cloudflared tunnel" 2>/dev/null || true
+	@echo "✓ Akses Homelab sekarang benar-benar terputus (Simulasi Mati Lampu/Internet Putus)."
+	@echo "👉 Silakan cek grafana.faisalaffan.com (pasti down), lalu buka https://dr.faisalaffan.com untuk pindah ke Cloud!"
 
 drill-start-homelab:
-	@echo "🧪 [DRILL] Menyalakan kembali K3s di Homelab..."
+	@echo "🧪 [DRILL] Menyalakan kembali K3s & Cloudflare Tunnel di Homelab..."
 	sudo systemctl start k3s
-	@echo "✓ K3s Homelab kembali menyala."
+	@until $(KUBECTL) get nodes 2>/dev/null | grep -q "Ready"; do sleep 2; done
+	@$(KUBECTL) scale deployment cloudflared -n $(NAMESPACE) --replicas=1
+	@echo "✓ K3s & Tunnel Homelab kembali menyala normal."
 
 # --- 🚀 Infrastructure Provisioning (Terraform) ---
 failover-plan:

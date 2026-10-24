@@ -75,6 +75,7 @@ until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
     sleep 2
 done
 log "Node K3s Homelab sudah Ready ✓"
+kubectl scale deployment cloudflared -n infra --replicas=1 2>/dev/null || true
 
 if [[ "$SKIP_B2_PULL" == "false" ]]; then
     log "Phase 2: Menarik data terbaru dari Backblaze B2 ke Homelab..."
