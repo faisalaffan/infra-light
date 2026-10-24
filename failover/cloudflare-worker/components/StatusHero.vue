@@ -52,6 +52,37 @@ defineProps<{
         </template>
       </p>
 
+      <!-- Smart System State Recommendation Banner -->
+      <div
+        v-if="statusData?.recommendation"
+        class="smart-recommendation-banner"
+        :class="{
+          optimal: statusData?.systemState === 'STANDBY_OPTIMAL',
+          active: statusData?.systemState === 'FAILOVER_ACTIVE',
+          warning: statusData?.systemState === 'COST_WARNING',
+          danger: statusData?.systemState === 'CRITICAL_MISMATCH',
+          transition: statusData?.systemState === 'TRANSITIONING'
+        }"
+      >
+        <span class="banner-icon">
+          {{
+            statusData?.systemState === 'STANDBY_OPTIMAL' ? '🛡️' :
+            statusData?.systemState === 'FAILOVER_ACTIVE' ? '🚀' :
+            statusData?.systemState === 'COST_WARNING' ? '⚠️' :
+            statusData?.systemState === 'CRITICAL_MISMATCH' ? '🚨' : '⏳'
+          }}
+        </span>
+        <div class="banner-text">
+          <b>{{
+            statusData?.systemState === 'STANDBY_OPTIMAL' ? 'Siaga Ideal ($0 Compute): ' :
+            statusData?.systemState === 'FAILOVER_ACTIVE' ? 'Failover Cloud Berjalan: ' :
+            statusData?.systemState === 'COST_WARNING' ? 'Peringatan Biaya: ' :
+            statusData?.systemState === 'CRITICAL_MISMATCH' ? 'Peringatan Bahaya: ' : 'Status Transisi: '
+          }}</b>
+          {{ statusData?.recommendation }}
+        </div>
+      </div>
+
       <!-- Visual Flow Diagram -->
       <div class="flow-diagram">
         <div class="flow-node">
@@ -135,6 +166,51 @@ defineProps<{
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.smart-recommendation-banner {
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+
+  .banner-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  &.optimal {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+  }
+
+  &.active {
+    background: rgba(14, 165, 233, 0.12);
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    color: #38bdf8;
+  }
+
+  &.warning {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+  }
+
+  &.danger {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #f87171;
+  }
+
+  &.transition {
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #c084fc;
+  }
 }
 
 .big-status-pill {

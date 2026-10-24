@@ -11,12 +11,33 @@ export default defineEventHandler(async (event) => {
   const tencentUuid = process.env.CLOUDFLARE_TENCENT_TUNNEL_UUID
 
   let newContent = ''
+  let autoStartMessage = ''
+
   if (target === 'homelab') {
     if (!homelabUuid) throw createError({ statusCode: 400, statusMessage: 'CLOUDFLARE_HOMELAB_TUNNEL_UUID belum dikonfigurasi' })
     newContent = `${homelabUuid}.cfargotunnel.com`
   } else if (target === 'tencent') {
     if (!tencentUuid) throw createError({ statusCode: 400, statusMessage: 'CLOUDFLARE_TENCENT_TUNNEL_UUID belum dikonfigurasi' })
     newContent = `${tencentUuid}.cfargotunnel.com`
+
+    // Auto-Start CVM if it is currently STOPPED (1-Click Smart Failover)
+    const autoStart = body?.autoStartCvm !== false
+    if (autoStart && process.env.TENCENTCLOUD_SECRET_ID && process.env.TENCENTCLOUD_SECRET_KEY) {
+      try {
+        const queryPayload = process.env.TENCENT_INSTANCE_ID ? { InstanceIds: [process.env.TENCENT_INSTANCE_ID] } : { Limit: 5 }
+        const cvmData = await callTencentCvmApi('DescribeInstances', queryPayload)
+        const instances = cvmData.Response?.InstanceSet || []
+        if (instances.length > 0) {
+          const inst = instances[0]
+          if (inst.InstanceState === 'STOPPED') {
+            await callTencentCvmApi('StartInstances', { InstanceIds: [inst.InstanceId] })
+            autoStartMessage = ` CVM (${inst.InstanceId}) otomatis dinyalakan dan sedang memicu restore delta dari B2.`
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to auto-start CVM during switch:', err)
+      }
+    }
   } else {
     throw createError({ statusCode: 400, statusMessage: "Target tidak valid. Tentukan 'homelab' atau 'tencent'" })
   }
@@ -66,9 +87,10 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    message: `Lalu lintas berhasil dialihkan ke ${target.toUpperCase()}`,
+    message: `Lalu lintas berhasil dialihkan ke ${target.toUpperCase()}.${autoStartMessage}`,
     targetOrigin: target.toUpperCase(),
     newContent,
+    autoStartTriggered: !!autoStartMessage,
     timestamp: new Date().toISOString()
   }
 })

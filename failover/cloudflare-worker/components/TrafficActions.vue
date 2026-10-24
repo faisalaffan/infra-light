@@ -19,7 +19,7 @@ const emit = defineEmits<{
         <div class="btn-icon">🚀</div>
         <div class="btn-info">
           <h3>Alihkan ke Cloud Standby (Tencent Singapore)</h3>
-          <p>Tekan tombol ini saat Server Malang / Homelab mati lampu atau internet padam. Memindahkan seluruh website ke Cloud.</p>
+          <p>Tekan tombol ini saat Server Malang / Homelab mati lampu atau internet padam. Otomatis menyalakan CVM, sync B2, dan mengalihkan 29 subdomain ke Cloud.</p>
         </div>
         <div class="btn-arrow-right">➔</div>
       </div>

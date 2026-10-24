@@ -63,6 +63,27 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // 3. Compute System Health Scenario & Recommendation
+  let systemState: 'STANDBY_OPTIMAL' | 'FAILOVER_ACTIVE' | 'COST_WARNING' | 'CRITICAL_MISMATCH' | 'TRANSITIONING' | 'UNKNOWN' = 'UNKNOWN'
+  let recommendation = ''
+
+  if (cvm.status === 'STARTING' || cvm.status === 'STOPPING') {
+    systemState = 'TRANSITIONING'
+    recommendation = `CVM sedang dalam status ${cvm.status}. Harap tunggu sebentar hingga proses selesai.`
+  } else if (currentOrigin === 'HOMELAB' && cvm.status === 'STOPPED') {
+    systemState = 'STANDBY_OPTIMAL'
+    recommendation = 'Kondisi Standby Ideal: Homelab aktif melayani lalu lintas dan CVM Cloud dalam mode hemat ($0 compute).'
+  } else if (currentOrigin === 'TENCENT' && cvm.status === 'RUNNING') {
+    systemState = 'FAILOVER_ACTIVE'
+    recommendation = 'Mode Failover Aktif: Seluruh 29 subdomain sedang dilayani oleh Tencent Cloud Standby node.'
+  } else if (currentOrigin === 'HOMELAB' && cvm.status === 'RUNNING') {
+    systemState = 'COST_WARNING'
+    recommendation = 'Homelab sedang aktif, namun CVM Tencent masih MENYALA. Matikan CVM ke STOP_CHARGING ($0) untuk menghemat biaya!'
+  } else if (currentOrigin === 'TENCENT' && cvm.status === 'STOPPED') {
+    systemState = 'CRITICAL_MISMATCH'
+    recommendation = 'BAHAYA: DNS mengarah ke Tencent Cloud namun CVM dalam status MATI! Nyalakan CVM segera atau kembalikan ke Homelab.'
+  }
+
   return {
     masterRecord,
     currentOrigin,
@@ -72,6 +93,8 @@ export default defineEventHandler(async (event) => {
     homelabUuid: homelabUuid ? `${homelabUuid.substring(0, 8)}...` : null,
     tencentUuid: tencentUuid ? `${tencentUuid.substring(0, 8)}...` : null,
     cvm,
+    systemState,
+    recommendation,
     timestamp: new Date().toISOString()
   }
 })

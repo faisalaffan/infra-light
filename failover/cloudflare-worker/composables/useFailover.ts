@@ -22,6 +22,8 @@ export interface StatusResponse {
     zone?: string
     error?: string
   }
+  systemState?: 'STANDBY_OPTIMAL' | 'FAILOVER_ACTIVE' | 'COST_WARNING' | 'CRITICAL_MISMATCH' | 'TRANSITIONING' | 'UNKNOWN'
+  recommendation?: string
   timestamp: string
 }
 
@@ -107,16 +109,31 @@ export function useFailover() {
 
   function openConfirmSwitch(target: 'homelab' | 'tencent') {
     const isTencent = target === 'tencent'
-    confirmModal.value = {
-      visible: true,
-      type: 'switch',
-      target,
-      title: isTencent ? 'Alihkan Traffic ke Cloud Standby?' : 'Kembalikan Traffic ke Server Malang?',
-      description: isTencent
-        ? 'Anda akan mengalihkan <b>SEMUA 29 subdomain</b> website & API menuju <b>Tencent Cloud Standby (Singapore)</b>.<br><br>Gunakan langkah ini jika Server Malang mati lampu atau internet padam. Perubahan efektif di Cloudflare dalam 5-15 detik.'
-        : 'Anda akan mengembalikan <b>SEMUA subdomain</b> menuju <b>Server Utama Malang (Homelab)</b>.<br><br>Gunakan langkah ini setelah Server Malang sudah online normal kembali.',
-      confirmText: isTencent ? 'Ya, Alihkan ke Cloud Standby' : 'Ya, Kembalikan ke Malang',
-      confirmColor: isTencent ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+    const cvmStatus = statusData.value?.cvm?.status || 'UNKNOWN'
+
+    if (isTencent) {
+      const isStopped = cvmStatus === 'STOPPED'
+      confirmModal.value = {
+        visible: true,
+        type: 'switch',
+        target,
+        title: isStopped ? '⚡ 1-Click Failover ke Cloud Standby?' : 'Alihkan Traffic ke Cloud Standby?',
+        description: isStopped
+          ? 'Server Cloud Standby saat ini berstatus <b>🛑 MATI ($0 STOP_CHARGING)</b>.<br><br>Dengan 1-Click Failover ini, sistem akan:<br>1. <b>Menyalakan CVM Tencent</b> secara otomatis.<br>2. <b>Startup daemon</b> akan mengunduh snapshot Persistent Volume terbaru dari <b>Backblaze B2</b>.<br>3. <b>Cloudflare</b> memindahkan seluruh 29 subdomain ke Cloud Tunnel.<br><br>Aman, tanpa risiko data conflict.'
+          : 'Anda akan mengalihkan <b>SEMUA 29 subdomain</b> website & API menuju <b>Tencent Cloud Standby (Singapore)</b>.<br><br>CVM saat ini sudah menyala. Perubahan efektif di Cloudflare dalam 5-15 detik.',
+        confirmText: isStopped ? '🚀 Nyalakan CVM & Alihkan Otomatis' : 'Ya, Alihkan ke Cloud Standby',
+        confirmColor: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+      }
+    } else {
+      confirmModal.value = {
+        visible: true,
+        type: 'switch',
+        target,
+        title: 'Kembalikan Traffic ke Server Malang?',
+        description: 'Anda akan mengembalikan <b>SEMUA subdomain</b> menuju <b>Server Utama Malang (Homelab)</b>.<br><br>Gunakan langkah ini setelah Server Malang sudah online normal kembali.',
+        confirmText: 'Ya, Kembalikan ke Malang',
+        confirmColor: 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+      }
     }
   }
 
@@ -154,6 +171,21 @@ export function useFailover() {
         if (res.success) {
           addLog('OK', `Berhasil switch ke ${target.toUpperCase()}!`, 'switch')
           showToast(`✅ Sukses! Seluruh traffic dialihkan ke ${target.toUpperCase()}.`)
+
+          // Suggest stopping CVM if returning to homelab and CVM is still running
+          if (target === 'homelab' && statusData.value?.cvm?.status === 'RUNNING') {
+            setTimeout(() => {
+              confirmModal.value = {
+                visible: true,
+                type: 'compute',
+                target: 'stop',
+                title: '💡 Matikan CVM Cloud ($0 STOP_CHARGING)?',
+                description: 'Lalu lintas telah kembali ke <b>Homelab Malang</b>.<br><br>Untuk menghemat biaya komputasi, matikan CVM Tencent sekarang ke mode <b>STOP_CHARGING</b> ($0/bulan).',
+                confirmText: '🛑 Ya, Matikan CVM Sekarang ($0)',
+                confirmColor: '#ef4444'
+              }
+            }, 1200)
+          }
         }
       } else if (type === 'compute') {
         addLog('COMPUTE', `Mengirim perintah ${target.toUpperCase()} CVM ke Tencent Cloud...`, 'compute')

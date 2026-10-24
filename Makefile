@@ -103,10 +103,10 @@ vault-help:
 	@echo "  make vault-unseal KEY=<key>        Unseal Vault using unseal key"
 
 # ============================================================
-# Cold-Standby Disaster Recovery (Failover to Vultr / AWS)
+# Cold-Standby Disaster Recovery (Failover to Tencent Cloud / Vultr / AWS)
 # ============================================================
-PROVIDER ?= vultr
-ENV ?= drill
+PROVIDER ?= tencent
+ENV ?= prod
 
 .PHONY: failover-status failover-switch-tencent failover-switch-homelab failover-switch \
         failover-start-tencent failover-stop-tencent \
