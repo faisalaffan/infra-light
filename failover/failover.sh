@@ -33,6 +33,8 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
     export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
     export TF_VAR_cloudflare_api_token="${CLOUDFLARE_API_TOKEN:-${TF_VAR_cloudflare_api_token:-}}"
+    export TF_VAR_cloudflare_api_key="${CLOUDFLARE_API_KEY:-}"
+    export TF_VAR_cloudflare_email="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
     export TF_VAR_cloudflare_zone_id="${CLOUDFLARE_ZONE_ID:-${TF_VAR_cloudflare_zone_id:-}}"
     export TF_VAR_cloudflare_account_id="${CLOUDFLARE_ACCOUNT_ID:-${TF_VAR_cloudflare_account_id:-}}"
     export TF_VAR_enable_load_balancer="${CLOUDFLARE_ENABLE_LOAD_BALANCER:-${TF_VAR_enable_load_balancer:-false}}"

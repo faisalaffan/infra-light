@@ -131,6 +131,19 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
+variable "cloudflare_api_key" {
+  description = "Cloudflare Global API Key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cloudflare_email" {
+  description = "Cloudflare Email for Global API Key"
+  type        = string
+  default     = ""
+}
+
 variable "cloudflare_zone_id" {
   description = "Cloudflare Zone ID"
   type        = string
