@@ -1,4 +1,8 @@
 <script setup lang="ts">
+defineProps<{
+  currentOrigin?: 'HOMELAB' | 'TENCENT' | 'UNKNOWN'
+}>()
+
 const emit = defineEmits<{
   (e: 'switch', target: 'tencent' | 'homelab'): void
 }>()
@@ -7,32 +11,78 @@ const emit = defineEmits<{
 <template>
   <section class="card">
     <div class="card-title-row">
-      <span class="card-title">🔀 Tombol Pengalihan Lalu Lintas (Failover)</span>
+      <span class="card-title">Pilih Tindakan Pengalihan</span>
     </div>
     <p class="section-desc">
-      Pilih tindakan di bawah sesuai kondisi server saat ini. Semua 29 subdomain akan otomatis berpindah dalam 5-15 detik.
+      Pilih lokasi server sesuai kondisi saat ini. Sistem akan menyiapkan server dan memindahkan akses secara otomatis.
     </p>
 
     <div class="actions-stack">
-      <!-- Switch ke Tencent Standby Button -->
-      <div class="action-btn-card btn-tencent-card" @click="emit('switch', 'tencent')">
-        <div class="btn-icon">🚀</div>
-        <div class="btn-info">
-          <h3>Alihkan ke Cloud Standby (Tencent Singapore)</h3>
-          <p>Tekan tombol ini saat Server Malang / Homelab mati lampu atau internet padam. Otomatis menyalakan CVM, sync B2, dan mengalihkan 29 subdomain ke Cloud.</p>
+      <!-- Switch ke Cloud Standby -->
+      <button
+        type="button"
+        class="action-card"
+        :class="{
+          'primary-cloud': currentOrigin === 'HOMELAB',
+          'is-current': currentOrigin === 'TENCENT'
+        }"
+        @click="emit('switch', 'tencent')"
+      >
+        <div class="action-icon cloud-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+          </svg>
         </div>
-        <div class="btn-arrow-right">➔</div>
-      </div>
 
-      <!-- Switch ke Homelab Primary Button -->
-      <div class="action-btn-card btn-homelab-card" @click="emit('switch', 'homelab')">
-        <div class="btn-icon">🏠</div>
-        <div class="btn-info">
-          <h3>Kembalikan ke Server Utama (Homelab Malang)</h3>
-          <p>Tekan tombol ini saat Server Malang sudah online normal kembali untuk mengembalikan seluruh traffic ke rumah.</p>
+        <div class="action-info">
+          <div class="action-title-row">
+            <h3>Gunakan Server Cadangan (Cloud)</h3>
+            <span v-if="currentOrigin === 'TENCENT'" class="active-tag">Sedang Aktif</span>
+          </div>
+          <p>
+            Pilih ini jika listrik atau internet di Malang mati. Server Cloud otomatis dinyalakan dan mengambil alih website.
+          </p>
         </div>
-        <div class="btn-arrow-right">➔</div>
-      </div>
+
+        <div class="action-chevron">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+        </div>
+      </button>
+
+      <!-- Switch ke Homelab Primary -->
+      <button
+        type="button"
+        class="action-card"
+        :class="{
+          'primary-home': currentOrigin === 'TENCENT',
+          'is-current': currentOrigin === 'HOMELAB'
+        }"
+        @click="emit('switch', 'homelab')"
+      >
+        <div class="action-icon home-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>
+
+        <div class="action-info">
+          <div class="action-title-row">
+            <h3>Gunakan Server Utama (Malang)</h3>
+            <span v-if="currentOrigin === 'HOMELAB'" class="active-tag home">Sedang Aktif</span>
+          </div>
+          <p>
+            Pilih ini saat listrik dan internet di Malang sudah kembali normal. Server Cloud akan otomatis dimatikan agar hemat biaya.
+          </p>
+        </div>
+
+        <div class="action-chevron">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+        </div>
+      </button>
     </div>
   </section>
 </template>
@@ -41,97 +91,124 @@ const emit = defineEmits<{
 @use '~/assets/scss/variables' as *;
 
 .section-desc {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
   margin-bottom: 16px;
+  line-height: 1.45;
 }
 
 .actions-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
-.action-btn-card {
-  border: 2px solid transparent;
-  border-radius: 16px;
-  padding: 18px 22px;
+.action-card {
+  width: 100%;
+  background: var(--card-inner-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 16px 18px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 16px;
   cursor: pointer;
   transition: $transition-base;
   text-align: left;
+  color: var(--text);
+  font-family: inherit;
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.25);
+    border-color: var(--card-border-hover);
+    transform: translateY(-1px);
   }
 
-  .btn-icon {
-    font-size: 32px;
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
+  &.primary-cloud {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(14, 165, 233, 0.03) 100%);
+
+    &:hover {
+      border-color: rgba(59, 130, 246, 0.6);
+      box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.2);
+    }
+  }
+
+  &.primary-home {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.03) 100%);
+
+    &:hover {
+      border-color: rgba(16, 185, 129, 0.6);
+      box-shadow: 0 8px 20px -6px rgba(16, 185, 129, 0.2);
+    }
+  }
+
+  &.is-current {
+    opacity: 0.78;
+  }
+}
+
+.action-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &.cloud-icon {
+    background: rgba(59, 130, 246, 0.14);
+    color: #3b82f6;
+  }
+
+  &.home-icon {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+  }
+}
+
+.action-info {
+  flex: 1;
+
+  .action-title-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
   }
 
-  .btn-info {
-    flex: 1;
-
-    h3 {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    p {
-      font-size: 13px;
-      line-height: 1.4;
-      opacity: 0.9;
-    }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
   }
 
-  .btn-arrow-right {
-    font-size: 22px;
-    opacity: 0.7;
-    transition: $transition-base;
-  }
-
-  &:hover .btn-arrow-right {
-    opacity: 1;
-    transform: translateX(4px);
+  p {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-muted);
   }
 }
 
-.btn-tencent-card {
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-  color: white;
-  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.35);
+.active-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.16);
+  color: #60a5fa;
 
-  .btn-icon {
-    background: rgba(255, 255, 255, 0.18);
-  }
-
-  &:hover {
-    border-color: #38bdf8;
+  &.home {
+    background: rgba(16, 185, 129, 0.16);
+    color: #10b981;
   }
 }
 
-.btn-homelab-card {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  color: white;
-  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.35);
-
-  .btn-icon {
-    background: rgba(255, 255, 255, 0.18);
-  }
-
-  &:hover {
-    border-color: #34d399;
-  }
+.action-chevron {
+  color: var(--text-subtle);
+  display: flex;
+  align-items: center;
 }
 </style>

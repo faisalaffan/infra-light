@@ -4,11 +4,11 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   app: {
     head: {
-      title: 'Pusat Kendali Failover (Disaster Recovery)',
+      title: 'Panel Kendali Server • Malang & Cloud',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' },
-        { name: 'description', content: 'Disaster Recovery Failover Control Center - Homelab Malang ⇄ Tencent Cloud Standby' }
+        { name: 'description', content: 'Panel kendali pengalihan akses Server Malang & Server Cadangan Cloud' }
       ],
       link: [
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },

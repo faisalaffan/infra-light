@@ -11,11 +11,34 @@ export default defineEventHandler(async (event) => {
   const tencentUuid = process.env.CLOUDFLARE_TENCENT_TUNNEL_UUID
 
   let newContent = ''
-  let autoStartMessage = ''
+  let cvmActionMessage = ''
 
   if (target === 'homelab') {
     if (!homelabUuid) throw createError({ statusCode: 400, statusMessage: 'CLOUDFLARE_HOMELAB_TUNNEL_UUID belum dikonfigurasi' })
     newContent = `${homelabUuid}.cfargotunnel.com`
+
+    // Auto-Stop CVM if requested and currently RUNNING
+    const autoStop = body?.autoStopCvm !== false
+    if (autoStop && process.env.TENCENTCLOUD_SECRET_ID && process.env.TENCENTCLOUD_SECRET_KEY) {
+      try {
+        const queryPayload = process.env.TENCENT_INSTANCE_ID ? { InstanceIds: [process.env.TENCENT_INSTANCE_ID] } : { Limit: 5 }
+        const cvmData = await callTencentCvmApi('DescribeInstances', queryPayload)
+        const instances = cvmData.Response?.InstanceSet || []
+        if (instances.length > 0) {
+          const inst = instances[0]
+          if (inst.InstanceState === 'RUNNING') {
+            await callTencentCvmApi('StopInstances', {
+              InstanceIds: [inst.InstanceId],
+              StopType: 'SOFT_FIRST',
+              StoppedMode: 'STOP_CHARGING'
+            })
+            cvmActionMessage = ' Server cadangan Cloud juga telah dimatikan otomatis (Mode Hemat).'
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to auto-stop CVM during switch:', err)
+      }
+    }
   } else if (target === 'tencent') {
     if (!tencentUuid) throw createError({ statusCode: 400, statusMessage: 'CLOUDFLARE_TENCENT_TUNNEL_UUID belum dikonfigurasi' })
     newContent = `${tencentUuid}.cfargotunnel.com`
@@ -31,7 +54,7 @@ export default defineEventHandler(async (event) => {
           const inst = instances[0]
           if (inst.InstanceState === 'STOPPED') {
             await callTencentCvmApi('StartInstances', { InstanceIds: [inst.InstanceId] })
-            autoStartMessage = ` CVM (${inst.InstanceId}) otomatis dinyalakan dan sedang memicu restore delta dari B2.`
+            cvmActionMessage = ' Server cadangan Cloud otomatis dinyalakan dan sedang menyiapkan data terbaru.'
           }
         }
       } catch (err: any) {
@@ -85,12 +108,13 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const friendlyTarget = target === 'homelab' ? 'Server Utama (Malang)' : 'Server Cadangan (Cloud)'
   return {
     success: true,
-    message: `Lalu lintas berhasil dialihkan ke ${target.toUpperCase()}.${autoStartMessage}`,
+    message: `Akses berhasil dialihkan ke ${friendlyTarget}.${cvmActionMessage}`,
     targetOrigin: target.toUpperCase(),
     newContent,
-    autoStartTriggered: !!autoStartMessage,
+    cvmActionTriggered: !!cvmActionMessage,
     timestamp: new Date().toISOString()
   }
 })

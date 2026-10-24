@@ -2,7 +2,7 @@
 import type { StatusResponse } from '~/composables/useFailover'
 
 defineProps<{
-  cvm?: StatusResponse['cvm']
+  statusData?: StatusResponse | null
 }>()
 
 const emit = defineEmits<{
@@ -13,57 +13,70 @@ const emit = defineEmits<{
 <template>
   <section class="card">
     <div class="card-title-row">
-      <span class="card-title">☁️ Server Cloud Standby (Tencent CVM - $0 Idle)</span>
+      <span class="card-title">Kontrol Mesin Cloud Manual</span>
+      <span class="sub-label">Opsional</span>
     </div>
 
     <div class="compute-box">
       <div class="compute-header">
         <div>
-          <strong class="cvm-title">{{ cvm?.instanceName || 'k3s-failover-prod' }}</strong>
+          <strong class="cvm-title">Server Cadangan ({{ statusData?.cvm?.instanceName || 'Cloud Singapore' }})</strong>
           <span class="cvm-meta">
-            {{ cvm?.publicIp ? `IP: ${cvm.publicIp} • ` : '' }}{{ cvm?.zone || 'ap-singapore-2' }}
+            {{ statusData?.cvm?.publicIp ? `IP: ${statusData.cvm.publicIp} • ` : '' }}{{ statusData?.cvm?.zone || 'ap-singapore-2' }}
           </span>
         </div>
         <div
           class="compute-badge"
           :class="{
-            running: cvm?.status === 'RUNNING',
-            stopped: cvm?.status === 'STOPPED' || !cvm
+            running: statusData?.cvm?.status === 'RUNNING',
+            stopped: statusData?.cvm?.status === 'STOPPED' || !statusData?.cvm
           }"
         >
           <span class="pulse-dot"></span>
           <span>
             {{
-              cvm?.status === 'RUNNING'
-                ? '🟢 MENYALA (RUNNING)'
-                : cvm?.status === 'STOPPED'
-                ? '🛑 MATI ($0 STOP_CHARGING)'
-                : cvm?.status || 'Memeriksa...'
+              statusData?.cvm?.status === 'RUNNING'
+                ? 'Menyala'
+                : statusData?.cvm?.status === 'STOPPED'
+                ? 'Mati (Mode Hemat)'
+                : statusData?.cvm?.status || 'Memeriksa...'
             }}
           </span>
         </div>
       </div>
 
       <p class="compute-desc">
-        Server Cloud ini diatur dalam mode <b>STOP_CHARGING</b> sehingga <b>bebas biaya komputasi ($0/bulan)</b> saat mati.
-        Pastikan server dinyalakan terlebih dahulu sebelum mengalihkan traffic jika diperlukan, atau matikan kembali untuk menghemat biaya.
+        Gunakan tombol di bawah jika Anda hanya ingin menyalakan atau mematikan mesin Cloud secara terpisah tanpa memindahkan jalur website.
       </p>
 
       <div class="compute-buttons-row">
         <button
+          type="button"
           class="btn-compute btn-compute-start"
-          :disabled="cvm?.status === 'RUNNING'"
+          :disabled="statusData?.cvm?.status === 'RUNNING'"
           @click="emit('compute', 'start')"
         >
-          ⚡ Nyalakan Server (Start)
+          Nyalakan Mesin Cloud
         </button>
         <button
+          type="button"
           class="btn-compute btn-compute-stop"
-          :disabled="cvm?.status === 'STOPPED'"
+          :disabled="statusData?.cvm?.status === 'STOPPED'"
           @click="emit('compute', 'stop')"
         >
-          🛑 Matikan Server ($0 STOP_CHARGING)
+          Matikan Mesin (Mode Hemat)
         </button>
+      </div>
+
+      <div class="tech-meta-grid">
+        <div class="meta-item">
+          <span>Domain Pengarah Utama</span>
+          <code>{{ statusData?.masterRecord || '-' }}</code>
+        </div>
+        <div class="meta-item">
+          <span>Jalur Tunnel Aktif</span>
+          <code>{{ statusData?.targetContent || '-' }}</code>
+        </div>
       </div>
     </div>
   </section>
@@ -72,11 +85,15 @@ const emit = defineEmits<{
 <style lang="scss" scoped>
 @use '~/assets/scss/variables' as *;
 
+.sub-label {
+  font-size: 11px;
+  color: var(--text-subtle);
+  background: var(--badge-bg);
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
 .compute-box {
-  background: var(--card-inner-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -92,11 +109,12 @@ const emit = defineEmits<{
 
 .cvm-title {
   font-size: 14px;
+  font-weight: 600;
 }
 
 .cvm-meta {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--text-subtle);
   margin-left: 8px;
 }
 
@@ -104,75 +122,107 @@ const emit = defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border-radius: 9999px;
+  padding: 4px 11px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
 
   &.running {
-    background: rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.14);
     color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.35);
   }
 
   &.stopped {
-    background: rgba(100, 116, 139, 0.15);
-    color: #94a3b8;
-    border: 1px solid rgba(100, 116, 139, 0.35);
+    background: var(--badge-bg);
+    color: var(--text-muted);
   }
 }
 
 .compute-desc {
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .compute-buttons-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .btn-compute {
-  padding: 12px 16px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   transition: $transition-base;
-  border: 1px solid transparent;
+  border: 1px solid var(--card-border);
+  font-family: inherit;
 
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
-    transform: none !important;
   }
 }
 
 .btn-compute-start {
-  background: rgba(59, 130, 246, 0.15);
-  color: $primary;
+  background: rgba(37, 99, 235, 0.12);
   border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
 
   &:hover:not(:disabled) {
-    background: $primary;
+    background: #2563eb;
     color: white;
   }
 }
 
 .btn-compute-stop {
-  background: rgba(239, 68, 68, 0.12);
-  color: $danger;
+  background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
 
   &:hover:not(:disabled) {
-    background: $danger;
+    background: #dc2626;
     color: white;
+  }
+}
+
+.tech-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--card-border);
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  span {
+    font-size: 11px;
+    color: var(--text-subtle);
+  }
+
+  code {
+    font-family: $font-mono;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    word-break: break-all;
   }
 }
 </style>

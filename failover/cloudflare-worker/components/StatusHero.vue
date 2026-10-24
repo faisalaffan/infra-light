@@ -5,19 +5,23 @@ defineProps<{
   statusData: StatusResponse | null
   lastUpdated: string
 }>()
+
+const emit = defineEmits<{
+  (e: 'compute', action: 'start' | 'stop'): void
+}>()
 </script>
 
 <template>
   <section class="card">
     <div class="card-title-row">
-      <span class="card-title">📡 Status Routing Lalu Lintas (Traffic)</span>
-      <span class="last-refresh">Update: {{ lastUpdated || 'Checking...' }}</span>
+      <span class="card-title">Status Layanan Saat Ini</span>
+      <span class="last-refresh">Diperbarui {{ lastUpdated || '...' }}</span>
     </div>
 
-    <div class="hero-routing-box">
-      <div class="hero-status-header">
+    <div class="hero-main">
+      <div class="status-header">
         <div
-          class="big-status-pill"
+          class="status-pill"
           :class="{
             homelab: statusData?.currentOrigin === 'HOMELAB',
             tencent: statusData?.currentOrigin === 'TENCENT',
@@ -28,34 +32,87 @@ defineProps<{
           <span>
             {{
               statusData?.currentOrigin === 'HOMELAB'
-                ? '🟢 SERVER UTAMA (HOMELAB MALANG AKTIF)'
+                ? 'Berjalan Normal • Server Utama (Malang)'
                 : statusData?.currentOrigin === 'TENCENT'
-                ? '🔵 CLOUD STANDBY (TENCENT SINGAPORE AKTIF)'
-                : '⚪ MEMERIKSA STATUS ROUTING...'
+                ? 'Mode Cadangan • Server Cloud (Singapore)'
+                : 'Memeriksa koneksi server...'
             }}
           </span>
         </div>
-        <span class="edge-badge">
-          Cloudflare Edge: <b style="color: #f97316;">🟧 Aktif</b>
-        </span>
       </div>
 
-      <p class="hero-description">
+      <p class="hero-summary">
         <template v-if="statusData?.currentOrigin === 'HOMELAB'">
-          Lalu lintas seluruh 29 subdomain saat ini normal menuju <strong>Server Malang (Homelab Utama)</strong>.
+          Seluruh website dan aplikasi saat ini dilayani langsung oleh <strong>Server Utama di Malang</strong>.
         </template>
         <template v-else-if="statusData?.currentOrigin === 'TENCENT'">
-          Status Failover Aktif! Seluruh lalu lintas sedang dilayani oleh <strong>Cloud Standby (Tencent Cloud Singapore)</strong>.
+          Seluruh website dan aplikasi saat ini dialihkan sementara ke <strong>Server Cadangan di Cloud</strong>.
         </template>
         <template v-else>
-          Sistem sedang memverifikasi rute DNS global di Cloudflare Edge.
+          Sedang memuat informasi jalur server aktif...
         </template>
       </p>
 
-      <!-- Smart System State Recommendation Banner -->
+      <!-- Clean 2-Server Comparison Grid -->
+      <div class="servers-grid">
+        <!-- Server Malang -->
+        <div class="server-item" :class="{ active: statusData?.currentOrigin === 'HOMELAB' }">
+          <div class="server-top">
+            <div class="server-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+            </div>
+            <span class="server-badge" :class="statusData?.currentOrigin === 'HOMELAB' ? 'badge-green' : 'badge-muted'">
+              {{ statusData?.currentOrigin === 'HOMELAB' ? 'Aktif Melayani' : 'Siaga' }}
+            </span>
+          </div>
+          <div class="server-name">Server Utama (Malang)</div>
+          <div class="server-meta">Jaringan Utama Lokal</div>
+        </div>
+
+        <!-- Server Cloud -->
+        <div class="server-item" :class="{ 'active-cloud': statusData?.currentOrigin === 'TENCENT' }">
+          <div class="server-top">
+            <div class="server-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+              </svg>
+            </div>
+            <span
+              class="server-badge"
+              :class="{
+                'badge-blue': statusData?.cvm?.status === 'RUNNING',
+                'badge-muted': statusData?.cvm?.status === 'STOPPED' || !statusData?.cvm,
+                'badge-amber': statusData?.cvm?.status === 'STARTING' || statusData?.cvm?.status === 'STOPPING'
+              }"
+            >
+              {{
+                statusData?.cvm?.status === 'RUNNING'
+                  ? 'Mesin Menyala'
+                  : statusData?.cvm?.status === 'STOPPED'
+                  ? 'Mode Hemat (Mati)'
+                  : statusData?.cvm?.status || 'Memeriksa'
+              }}
+            </span>
+          </div>
+          <div class="server-name">Server Cadangan (Cloud)</div>
+          <div class="server-meta">
+            {{
+              statusData?.cvm?.status === 'STOPPED'
+                ? 'Bebas biaya saat tidak digunakan'
+                : statusData?.cvm?.publicIp
+                ? `Cloud Singapore • ${statusData.cvm.publicIp}`
+                : 'Tencent Cloud Singapore'
+            }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Contextual Notice Banner -->
       <div
         v-if="statusData?.recommendation"
-        class="smart-recommendation-banner"
+        class="notice-bar"
         :class="{
           optimal: statusData?.systemState === 'STANDBY_OPTIMAL',
           active: statusData?.systemState === 'FAILOVER_ACTIVE',
@@ -64,80 +121,26 @@ defineProps<{
           transition: statusData?.systemState === 'TRANSITIONING'
         }"
       >
-        <span class="banner-icon">
-          {{
-            statusData?.systemState === 'STANDBY_OPTIMAL' ? '🛡️' :
-            statusData?.systemState === 'FAILOVER_ACTIVE' ? '🚀' :
-            statusData?.systemState === 'COST_WARNING' ? '⚠️' :
-            statusData?.systemState === 'CRITICAL_MISMATCH' ? '🚨' : '⏳'
-          }}
-        </span>
-        <div class="banner-text">
-          <b>{{
-            statusData?.systemState === 'STANDBY_OPTIMAL' ? 'Siaga Ideal ($0 Compute): ' :
-            statusData?.systemState === 'FAILOVER_ACTIVE' ? 'Failover Cloud Berjalan: ' :
-            statusData?.systemState === 'COST_WARNING' ? 'Peringatan Biaya: ' :
-            statusData?.systemState === 'CRITICAL_MISMATCH' ? 'Peringatan Bahaya: ' : 'Status Transisi: '
-          }}</b>
-          {{ statusData?.recommendation }}
+        <div class="notice-content">
+          <span class="notice-dot"></span>
+          <span>{{ statusData.recommendation }}</span>
         </div>
-      </div>
 
-      <!-- Visual Flow Diagram -->
-      <div class="flow-diagram">
-        <div class="flow-node">
-          <div class="node-icon">👥</div>
-          <div class="node-name">Pengunjung</div>
-          <div class="node-sub">Web & Mobile</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div class="flow-node">
-          <div class="node-icon">☁️</div>
-          <div class="node-name">Cloudflare</div>
-          <div class="node-sub">Global Edge DNS</div>
-        </div>
-        <div class="flow-arrow">➔</div>
-        <div
-          class="flow-node"
-          :class="{ active: statusData?.currentOrigin === 'HOMELAB' }"
+        <button
+          v-if="statusData?.systemState === 'COST_WARNING'"
+          class="btn-notice-action"
+          @click="emit('compute', 'stop')"
         >
-          <div class="node-icon">🏠</div>
-          <div class="node-name">Server Malang</div>
-          <div class="node-sub">Homelab Utama</div>
-        </div>
-        <div class="flow-arrow">/</div>
-        <div
-          class="flow-node"
-          :class="{ 'active-tencent': statusData?.currentOrigin === 'TENCENT' }"
+          Matikan Cloud
+        </button>
+        <button
+          v-else-if="statusData?.systemState === 'CRITICAL_MISMATCH'"
+          class="btn-notice-action"
+          @click="emit('compute', 'start')"
         >
-          <div class="node-icon">🚀</div>
-          <div class="node-name">Cloud Standby</div>
-          <div class="node-sub">Tencent Singapore</div>
-        </div>
+          Nyalakan Cloud
+        </button>
       </div>
-
-      <!-- Collapsible Technical Specs -->
-      <details class="tech-details">
-        <summary>🔧 Lihat Parameter Teknis DNS (Cloudflare CNAME)</summary>
-        <div class="tech-grid">
-          <div class="tech-item">
-            <span>Master Pointer Record</span>
-            <b>{{ statusData?.masterRecord || '-' }}</b>
-          </div>
-          <div class="tech-item">
-            <span>Target CNAME Aktif</span>
-            <code style="color: #38bdf8;">{{ statusData?.targetContent || 'Loading...' }}</code>
-          </div>
-          <div class="tech-item">
-            <span>Homelab Tunnel ID</span>
-            <code>{{ statusData?.homelabUuid || '-' }}</code>
-          </div>
-          <div class="tech-item">
-            <span>Tencent Standby ID</span>
-            <code>{{ statusData?.tencentUuid || '-' }}</code>
-          </div>
-        </div>
-      </details>
     </div>
   </section>
 </template>
@@ -146,21 +149,17 @@ defineProps<{
 @use '~/assets/scss/variables' as *;
 
 .last-refresh {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-subtle);
 }
 
-.hero-routing-box {
-  border-radius: 16px;
-  padding: 20px;
-  background: var(--card-inner-bg);
-  border: 1px solid var(--card-border);
+.hero-main {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.hero-status-header {
+.status-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -168,216 +167,197 @@ defineProps<{
   gap: 10px;
 }
 
-.smart-recommendation-banner {
-  border-radius: 12px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  line-height: 1.4;
-
-  .banner-icon {
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  &.optimal {
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    color: #10b981;
-  }
-
-  &.active {
-    background: rgba(14, 165, 233, 0.12);
-    border: 1px solid rgba(14, 165, 233, 0.3);
-    color: #38bdf8;
-  }
-
-  &.warning {
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    color: #fbbf24;
-  }
-
-  &.danger {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #f87171;
-  }
-
-  &.transition {
-    background: rgba(168, 85, 247, 0.12);
-    border: 1px solid rgba(168, 85, 247, 0.3);
-    color: #c084fc;
-  }
-}
-
-.big-status-pill {
+.status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
+  gap: 9px;
+  padding: 7px 14px;
   border-radius: 9999px;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-size: 13.5px;
+  font-weight: 600;
 
   &.homelab {
-    background: rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.12);
     color: #10b981;
-    border: 1.5px solid rgba(16, 185, 129, 0.45);
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.3);
   }
 
   &.tencent {
-    background: rgba(14, 165, 233, 0.15);
-    color: #0ea5e9;
-    border: 1.5px solid rgba(14, 165, 233, 0.45);
-    box-shadow: 0 0 20px rgba(14, 165, 233, 0.2);
+    background: rgba(37, 99, 235, 0.14);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.35);
   }
 
   &.unknown {
-    background: rgba(156, 163, 175, 0.15);
-    color: #94a3b8;
-    border: 1.5px solid rgba(156, 163, 175, 0.3);
+    background: var(--badge-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--badge-border);
   }
 }
 
-.edge-badge {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.hero-description {
-  font-size: 15px;
+.hero-summary {
+  font-size: 14px;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--text-muted);
 
   strong {
-    color: $primary;
+    color: var(--text);
+    font-weight: 600;
   }
 }
 
-.flow-diagram {
+.servers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.server-item {
+  padding: 15px 16px;
+  border-radius: 12px;
+  background: var(--card-inner-bg);
+  border: 1px solid var(--card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: $transition-base;
+
+  &.active {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.04);
+  }
+
+  &.active-cloud {
+    border-color: rgba(59, 130, 246, 0.45);
+    background: rgba(59, 130, 246, 0.05);
+  }
+}
+
+.server-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 14px;
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  border: 1px dashed var(--card-border);
-  flex-wrap: wrap;
+  margin-bottom: 2px;
 }
 
-.flow-node {
+.server-icon {
+  color: var(--text-muted);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 90px;
-  padding: 8px;
-  border-radius: 10px;
-  transition: $transition-base;
+}
 
-  .node-icon {
-    font-size: 22px;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+.server-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+
+  &.badge-green {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+  }
+
+  &.badge-blue {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+  }
+
+  &.badge-amber {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fbbf24;
+  }
+
+  &.badge-muted {
     background: var(--badge-bg);
-    border: 1px solid var(--badge-border);
+    color: var(--text-subtle);
+  }
+}
+
+.server-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.server-meta {
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.notice-bar {
+  border-radius: 11px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  background: var(--card-inner-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+
+  .notice-content {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 10px;
   }
 
-  .node-name {
-    font-size: 12px;
-    font-weight: 700;
+  .notice-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-subtle);
   }
 
-  .node-sub {
-    font-size: 11px;
-    color: var(--text-muted);
+  &.optimal .notice-dot {
+    background: #10b981;
   }
 
-  &.active {
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+  &.active .notice-dot {
+    background: #3b82f6;
+  }
 
-    .node-icon {
-      border-color: #10b981;
-      box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
-      color: #10b981;
+  &.warning {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.28);
+    color: var(--text);
+
+    .notice-dot {
+      background: #f59e0b;
     }
-
-    .node-name {
-      color: #10b981;
-    }
   }
 
-  &.active-tencent {
-    background: rgba(14, 165, 233, 0.08);
-    border: 1px solid rgba(14, 165, 233, 0.3);
+  &.danger {
+    background: rgba(239, 68, 68, 0.09);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--text);
 
-    .node-icon {
-      border-color: #0ea5e9;
-      box-shadow: 0 0 14px rgba(14, 165, 233, 0.35);
-      color: #0ea5e9;
-    }
-
-    .node-name {
-      color: #0ea5e9;
+    .notice-dot {
+      background: #ef4444;
     }
   }
 }
 
-.flow-arrow {
-  color: var(--text-subtle);
-  font-size: 18px;
-  font-weight: bold;
-}
-
-details.tech-details {
-  background: var(--card-inner-bg);
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 12px;
-
-  summary {
-    cursor: pointer;
-    color: $primary;
-    font-weight: 600;
-    user-select: none;
-  }
-}
-
-.tech-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-  font-family: $font-mono;
-  font-size: 11px;
-}
-
-.tech-item {
-  background: rgba(0, 0, 0, 0.15);
-  padding: 8px 12px;
+.btn-notice-action {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  padding: 6px 12px;
   border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: $transition-base;
 
-  span {
-    color: var(--text-subtle);
-    font-size: 10px;
-    text-transform: uppercase;
-    font-weight: 600;
+  &:hover {
+    opacity: 0.9;
   }
 }
 </style>

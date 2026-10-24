@@ -69,19 +69,21 @@ export default defineEventHandler(async (event) => {
 
   if (cvm.status === 'STARTING' || cvm.status === 'STOPPING') {
     systemState = 'TRANSITIONING'
-    recommendation = `CVM sedang dalam status ${cvm.status}. Harap tunggu sebentar hingga proses selesai.`
+    recommendation = cvm.status === 'STARTING'
+      ? 'Server cadangan sedang dinyalakan dan menyiapkan data terbaru (sekitar 30 detik)...'
+      : 'Server cadangan sedang dimatikan ke mode hemat biaya...'
   } else if (currentOrigin === 'HOMELAB' && cvm.status === 'STOPPED') {
     systemState = 'STANDBY_OPTIMAL'
-    recommendation = 'Kondisi Standby Ideal: Homelab aktif melayani lalu lintas dan CVM Cloud dalam mode hemat ($0 compute).'
+    recommendation = 'Semua layanan berjalan normal di Server Malang. Server cadangan dalam posisi istirahat (Rp 0).'
   } else if (currentOrigin === 'TENCENT' && cvm.status === 'RUNNING') {
     systemState = 'FAILOVER_ACTIVE'
-    recommendation = 'Mode Failover Aktif: Seluruh 29 subdomain sedang dilayani oleh Tencent Cloud Standby node.'
+    recommendation = 'Website saat ini dilayani oleh Server Cadangan Cloud. Kembalikan ke Malang jika kondisi sudah normal.'
   } else if (currentOrigin === 'HOMELAB' && cvm.status === 'RUNNING') {
     systemState = 'COST_WARNING'
-    recommendation = 'Homelab sedang aktif, namun CVM Tencent masih MENYALA. Matikan CVM ke STOP_CHARGING ($0) untuk menghemat biaya!'
+    recommendation = 'Website sudah berjalan di Malang, namun Server Cadangan Cloud masih menyala. Matikan agar tidak terkena biaya sewa.'
   } else if (currentOrigin === 'TENCENT' && cvm.status === 'STOPPED') {
     systemState = 'CRITICAL_MISMATCH'
-    recommendation = 'BAHAYA: DNS mengarah ke Tencent Cloud namun CVM dalam status MATI! Nyalakan CVM segera atau kembalikan ke Homelab.'
+    recommendation = 'Akses mengarah ke Cloud tetapi server cadangan masih mati. Nyalakan server Cloud atau pindahkan kembali ke Malang.'
   }
 
   return {

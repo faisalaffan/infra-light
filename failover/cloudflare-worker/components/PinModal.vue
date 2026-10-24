@@ -20,22 +20,22 @@ function submit() {
 <template>
   <div v-if="visible" class="card auth-card">
     <div class="card-title-row">
-      <span class="card-title">🔐 Masukkan Kunci Akses Administrator</span>
+      <span class="card-title">Verifikasi Kode Akses (PIN)</span>
     </div>
     <p class="auth-desc">
-      Masukkan PIN Disaster Recovery untuk mengaktifkan kontrol pengalihan traffic dan server standby.
+      Masukkan PIN keamanan untuk melihat status dan mengelola perpindahan server.
     </p>
     <div class="auth-input-group">
       <input
         v-model="pinInput"
         type="password"
-        placeholder="Masukkan PIN (Default: 2026)"
+        placeholder="Masukkan PIN"
         maxlength="12"
         class="pin-field"
         @keyup.enter="submit"
       >
-      <button class="btn-unlock" @click="submit">
-        Buka Kunci
+      <button type="button" class="btn-unlock" @click="submit">
+        Masuk
       </button>
     </div>
   </div>
@@ -45,19 +45,19 @@ function submit() {
 @use '~/assets/scss/variables' as *;
 
 .auth-card {
-  border-color: rgba(245, 158, 11, 0.4);
+  border-color: rgba(59, 130, 246, 0.35);
 }
 
 .auth-desc {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .auth-input-group {
   display: flex;
   gap: 10px;
-  max-width: 380px;
+  max-width: 360px;
 }
 
 .pin-field {
@@ -82,7 +82,8 @@ function submit() {
   border: 1px solid $primary;
   padding: 10px 18px;
   border-radius: 10px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: $transition-base;
 
