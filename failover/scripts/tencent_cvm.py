@@ -191,7 +191,12 @@ def main():
             if not instances:
                 print("ERROR: No instances found to start.", file=sys.stderr)
                 sys.exit(1)
-            target_instance_id = instances[0]["InstanceId"]
+            target_instance = instances[0]
+            target_instance_id = target_instance["InstanceId"]
+            state = target_instance.get("InstanceState")
+            if state in ("STARTING", "RUNNING"):
+                print(f"ℹ️  Instance {target_instance_id} is ALREADY {state}.")
+                sys.exit(0)
             
         print(f"Starting instance {target_instance_id} in {region}...")
         res = call_cvm_api(secret_id, secret_key, region, "StartInstances", {"InstanceIds": [target_instance_id]})
@@ -204,13 +209,18 @@ def main():
             if not instances:
                 print("ERROR: No instances found to stop.", file=sys.stderr)
                 sys.exit(1)
-            target_instance_id = instances[0]["InstanceId"]
+            target_instance = instances[0]
+            target_instance_id = target_instance["InstanceId"]
+            state = target_instance.get("InstanceState")
+            if state in ("STOPPING", "STOPPED"):
+                print(f"✔ Instance {target_instance_id} is ALREADY {state} (Zero Compute Billing).")
+                sys.exit(0)
             
-        # IMPORTANT: StopType="STOP", StoppedMode="STOP_CHARGING" ensures $0 compute cost while idle!
+        # IMPORTANT: StopType="SOFT_FIRST", StoppedMode="STOP_CHARGING" ensures $0 compute cost while idle!
         print(f"Stopping instance {target_instance_id} with StoppedMode=STOP_CHARGING (Zero Compute Billing)...")
         res = call_cvm_api(secret_id, secret_key, region, "StopInstances", {
             "InstanceIds": [target_instance_id],
-            "StopType": "STOP",
+            "StopType": "SOFT_FIRST",
             "StoppedMode": "STOP_CHARGING"
         })
         print(json.dumps(res.get("Response", {}), indent=2))

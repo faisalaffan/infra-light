@@ -18,6 +18,8 @@ on:
           - start
           - stop
           - status
+          - switch-tencent
+          - switch-homelab
           - apply
           - destroy
       environment:
@@ -50,6 +52,9 @@ env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_HOMELAB_TUNNEL_UUID: ${{ secrets.CLOUDFLARE_HOMELAB_TUNNEL_UUID }}
+  CLOUDFLARE_TENCENT_TUNNEL_UUID: ${{ secrets.CLOUDFLARE_TENCENT_TUNNEL_UUID }}
+  CLOUDFLARE_MASTER_ORIGIN_RECORD: ${{ secrets.CLOUDFLARE_MASTER_ORIGIN_RECORD }}
   FAILOVER_DOMAIN: ${{ secrets.FAILOVER_DOMAIN || 'homelab.faisalaffan.com' }}
   K3S_TOKEN: ${{ secrets.K3S_TOKEN }}
   SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
@@ -101,6 +106,21 @@ jobs:
 
           if [[ "$ACTION" == "status" ]]; then
             echo "Status report generated."
+            ./failover/failover.sh status
+            exit 0
+          fi
+
+          if [[ "$ACTION" == "switch-tencent" ]]; then
+            echo "Switching Cloudflare Master Pointer to Tencent Tunnel..."
+            ./failover/failover.sh switch tencent
+            echo "action_taken=SWITCHED_TO_TENCENT" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ "$ACTION" == "switch-homelab" ]]; then
+            echo "Switching Cloudflare Master Pointer to Homelab Tunnel..."
+            ./failover/failover.sh switch homelab
+            echo "action_taken=SWITCHED_TO_HOMELAB" >> $GITHUB_OUTPUT
             exit 0
           fi
 

@@ -108,8 +108,31 @@ vault-help:
 PROVIDER ?= vultr
 ENV ?= drill
 
-.PHONY: failover-plan failover-apply failover-destroy failover-output failover-help
+.PHONY: failover-status failover-switch-tencent failover-switch-homelab failover-switch \
+        failover-start-tencent failover-stop-tencent \
+        failover-plan failover-apply failover-destroy failover-output failover-help
 
+# --- ⚡ DNS Master Pointer Switcher (Zero-Cost & Instant) ---
+failover-status:
+	@bash ./failover/failover.sh status
+
+failover-switch-tencent:
+	@bash ./failover/failover.sh switch tencent
+
+failover-switch-homelab:
+	@bash ./failover/failover.sh switch homelab
+
+failover-switch:
+	@bash ./failover/failover.sh switch $(TARGET)
+
+# --- ☁️ Tencent Standby CVM Lifecycle ($0 Idle Compute) ---
+failover-start-tencent:
+	@python3 ./failover/scripts/tencent_cvm.py start
+
+failover-stop-tencent:
+	@python3 ./failover/scripts/tencent_cvm.py stop
+
+# --- 🚀 Infrastructure Provisioning (Terraform) ---
 failover-plan:
 	@bash ./failover/failover.sh plan $(ENV) $(PROVIDER)
 
@@ -125,13 +148,23 @@ failover-output:
 failover-help:
 	@echo "Disaster Recovery Failover Management"
 	@echo ""
-	@echo "  # Cloud (Vultr / AWS / Tencent Cloud) via Terraform:"
+	@echo "  # ⚡ DNS Master Pointer Switcher (Zero-Cost & Instant):"
+	@echo "  make failover-status            Check live origin routing & Tencent CVM status"
+	@echo "  make failover-switch-tencent    Switch ALL 29 subdomains to Tencent Standby"
+	@echo "  make failover-switch-homelab    Switch ALL 29 subdomains back to Homelab Primary"
+	@echo "  make failover-switch TARGET=... Switch to custom target (homelab or tencent)"
+	@echo ""
+	@echo "  # ☁️ Tencent Standby CVM Lifecycle (\$$0 Idle Compute):"
+	@echo "  make failover-start-tencent     Start Tencent CVM instance (boot time ~30s)"
+	@echo "  make failover-stop-tencent      Stop Tencent CVM instance (STOP_CHARGING - \$$0 compute)"
+	@echo ""
+	@echo "  # 🚀 Infrastructure Provisioning via Terraform:"
 	@echo "  make failover-plan [ENV=drill|prod] [PROVIDER=vultr|aws|tencent]"
 	@echo "  make failover-apply [ENV=drill|prod] [PROVIDER=vultr|aws|tencent]"
 	@echo "  make failover-destroy [ENV=drill|prod] [PROVIDER=vultr|aws|tencent]"
 	@echo "  make failover-output [ENV=drill|prod] [PROVIDER=vultr|aws|tencent]"
 	@echo ""
-	@echo "  # Baremetal Server via Ansible:"
+	@echo "  # 🖥️  Baremetal Server via Ansible:"
 	@echo "  make baremetal-restore [TARGET=k3s_server]"
 
 # --- Baremetal Restoration via Ansible ---------------------------
