@@ -1,0 +1,15 @@
+name = "dr-failover-controller"
+main = "worker.js"
+compatibility_date = "2026-10-24"
+
+[vars]
+CLOUDFLARE_ZONE_ID = "6e31dd491d4cdeab97e4e3ec76b61a28"
+CLOUDFLARE_MASTER_ORIGIN_RECORD = "origin.homelab.faisalaffan.com"
+CLOUDFLARE_HOMELAB_TUNNEL_UUID = "005b8e0c-2069-47f0-94b8-12899a9dac50"
+CLOUDFLARE_TENCENT_TUNNEL_UUID = "your_tencent_tunnel_uuid_here"
+GITHUB_REPO = "faisalaffan/infra-light"
+ADMIN_PIN = "2026"
+
+# Secrets to set via `npx wrangler secret put`:
+# - CLOUDFLARE_API_TOKEN
+# - GITHUB_PAT

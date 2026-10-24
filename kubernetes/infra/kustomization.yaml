@@ -5,12 +5,25 @@ resources:
   - base
   - postgres
   - mysql
+  - redis
   - victoriametrics
   - loki
+  - mailpit
+  - mongo-ui
   - tempo
   - pyroscope
   - grafana
   - alloy
   - cloudflared
   - cloudbeaver
+  - emqx
+  - excalidraw
+  - woodpecker
+  - docker-registry
+  - qdrant
+  - langfuse
   - ingress
+  - networkpolicy
+  - azure-sql-edge
+  - b2-backup
+

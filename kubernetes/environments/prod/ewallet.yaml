@@ -1,0 +1,110 @@
+# =========================================================================
+# eWallet Production Workloads
+# Namespace: ewallet
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ewallet-api
+  namespace: ewallet
+  labels:
+    app: ewallet-api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: ewallet-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ewallet-api
+  namespace: ewallet
+  labels:
+    app: ewallet-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ewallet-api
+  template:
+    metadata:
+      labels:
+        app: ewallet-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: ewallet-api
+          image: ghcr.io/faisalaffan/faisalaffan-ewallet-system:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: APP_PORT
+              value: "8080"
+            - name: OTEL_SERVICE_NAME
+              value: "ewallet-api"
+            - name: OTEL_DEPLOYMENT_ENVIRONMENT
+              value: "production"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "alloy-otel.infra:4318"
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+            - name: OTEL_TRACES_SAMPLER
+              value: "always_on"
+            - name: METRICS_PORT
+              value: "9090"
+          envFrom:
+            - secretRef:
+                name: ewallet-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /swagger
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /swagger
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ewallet-api
+  namespace: ewallet
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ewallet-api.faisalaffan.com
+      secretName: ewallet-api-tls
+  rules:
+    - host: ewallet-api.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ewallet-api
+                port:
+                  number: 8080

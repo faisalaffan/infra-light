@@ -1,0 +1,286 @@
+# =========================================================================
+# GeoStack Application Workloads
+# Namespace: geostack
+# =========================================================================
+
+# --- GeoStack API ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: geostack
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: geostack
+  labels:
+    app: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: geostack-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: geostack-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: POSTGRES_DB
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres.infra:5432/$(POSTGRES_DB)"
+            - name: JWT_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: JWT_ISSUER
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: MINIO_ENDPOINT
+            - name: MINIO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: MINIO_PORT
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: geostack-secrets
+                  key: MINIO_ROOT_USER
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: geostack-secrets
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: MINIO_BUCKET
+            - name: MARTIN_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: MARTIN_URL
+            - name: TITILER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: TITILER_URL
+            - name: GEOSERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: GEOSERVER_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: geostack-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+# --- GeoStack Web Frontend ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: geostack
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5173
+      targetPort: 5173
+      protocol: TCP
+  selector:
+    app: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: geostack
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: geostack-web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5173
+              protocol: TCP
+          env:
+            - name: VITE_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: VITE_API_URL
+            - name: VITE_KEYCLOAK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: VITE_KEYCLOAK_URL
+            - name: VITE_KEYCLOAK_REALM
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: VITE_KEYCLOAK_REALM
+            - name: VITE_KEYCLOAK_CLIENT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: geostack-config
+                  key: VITE_KEYCLOAK_CLIENT_ID
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+# --- ExternalName Cross-Namespace Services ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geoserver
+  namespace: geostack
+spec:
+  type: ExternalName
+  externalName: geoserver.infra.svc.cluster.local
+  ports:
+    - port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: geostack
+spec:
+  type: ExternalName
+  externalName: keycloak.infra.svc.cluster.local
+  ports:
+    - port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: martin
+  namespace: geostack
+spec:
+  type: ExternalName
+  externalName: martin.infra.svc.cluster.local
+  ports:
+    - port: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: geostack
+spec:
+  type: ExternalName
+  externalName: minio.infra.svc.cluster.local
+  ports:
+    - port: 9000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: titiler
+  namespace: geostack
+spec:
+  type: ExternalName
+  externalName: titiler.infra.svc.cluster.local
+  ports:
+    - port: 8080
+---
+# --- GeoStack Ingress ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: geostack-ingress
+  namespace: geostack
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: geostack.faisalaffan.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 5173
+    - host: keycloak.faisalaffan.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080

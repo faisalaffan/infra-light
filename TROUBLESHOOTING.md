@@ -1,5 +1,59 @@
 # Troubleshooting — DevOps Infrastructure
 
+## SSH ke Gitea — Connection reset by peer
+
+**Gejala:**
+```
+ssh -T git@git.faisalaffan.com
+kex_exchange_identification: read: Connection reset by peer
+Connection reset by 2606:4700:3032::ac43:d731 port 22
+```
+
+**Root cause (3 layer):**
+1. IP `2606:4700::*` = Cloudflare. Domain diproksi (orange cloud), Cloudflare tidak handle SSH.
+2. Cloudflared tunnel pakai `--protocol http2` (hanya HTTP), SSH butuh QUIC.
+3. Gitea `DISABLE_SSH=true`.
+
+**Fix — 3 hal harus dikerjakan:**
+
+### 1. Manifest sudah diupdate di repo
+
+- `kubernetes/infra/gitea/all.yaml`: SSH enabled, port 2222 exposed
+- `kubernetes/infra/cloudflared/all.yaml`: protocol `quic` (support HTTP + TCP)
+
+Deploy ulang:
+```bash
+kubectl apply -k kubernetes/infra/
+# atau
+kubectl apply -f kubernetes/infra/gitea/all.yaml
+kubectl apply -f kubernetes/infra/cloudflared/all.yaml
+kubectl rollout restart deploy/gitea -n infra
+kubectl rollout restart deploy/cloudflared -n infra
+```
+
+### 2. Cloudflare Zero Trust Dashboard (MANUAL — tidak bisa diautomasi)
+
+1. Buka https://one.dash.cloudflare.com/
+2. Networks → Tunnels → pilih tunnel yang sama (sesuai token)
+3. Public Hostname → Add:
+   - Subdomain: `git`
+   - Domain: `faisalaffan.com`
+   - Type: **TCP**
+   - URL: `tcp://gitea.infra:2222`
+4. Save
+
+### 3. Verifikasi
+
+```bash
+# Test dari MacBook
+ssh -T git@git.faisalaffan.com
+# Harus: "Hi there, You've successfully authenticated..."
+```
+
+**Kenapa TCP bukan SSH type:** Cloudflare dashboard ada type "SSH" tapi itu buat browser-rendered SSH (Zero Trust Access). Buat git SSH biasa, pakai type **TCP**.
+
+---
+
 ## Issue 1: ingress-nginx stuck Pending (port conflict)
 
 **Gejala:**

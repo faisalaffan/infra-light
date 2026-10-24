@@ -3,11 +3,8 @@ kind: Service
 metadata:
   name: mysql
   namespace: infra
-  annotations:
-    tailscale.com/hostname: mysql-faisalaffan
 spec:
-  type: LoadBalancer
-  loadBalancerClass: tailscale
+  type: ClusterIP
   ports:
     - port: 3306
       targetPort: 3306
@@ -38,6 +35,12 @@ spec:
           envFrom:
             - secretRef:
                 name: infra-secrets
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql

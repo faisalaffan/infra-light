@@ -28,6 +28,7 @@ GIT_NAME="${GIT_NAME:-Faisal Affan}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
 KUSTOMIZE_DIR="${SCRIPT_DIR}/kubernetes/infra"
+ENVIRONMENTS_DIR="${SCRIPT_DIR}/kubernetes/environments"
 HELMCHART_DIR="${SCRIPT_DIR}/kubernetes/helmcharts"
 
 # ------------------------------------------------------------------
@@ -57,10 +58,14 @@ detect_os() {
 # Base packages (curl, git, gnupg)
 # ------------------------------------------------------------------
 install_base() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        warn "Skipping base packages (needs sudo)"
+        return
+    fi
     log "Installing base packages..."
     if [ "$OS" = "linux" ]; then
         sudo apt-get update -qq
-        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release
+        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release restic awscli
     elif [ "$OS" = "macos" ]; then
         if ! command -v brew &>/dev/null; then
             log "Installing Homebrew..."
@@ -204,12 +209,18 @@ bootstrap_k3s() {
     fi
 
     log "Bootstrapping Tailscale + K3s (OS-level)..."
-    ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "Tailscale playbook had errors — continuing with K3s"
-    ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
+    if command -v k3s &>/dev/null && systemctl is-active --quiet k3s 2>/dev/null; then
+        log "Tailscale and K3s are already installed and running ✓"
+    else
+        ansible-playbook playbooks/tailscale.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "Tailscale playbook had errors — continuing with K3s"
+        ansible-playbook playbooks/k3s.yml -e "tailscale_ipv4=$tailscale_ip" $ansible_become || warn "K3s may already be installed"
+    fi
 
     fix_kubeconfig
     fix_k3s_perms
+    setup_k3s_registries
     fix_ufw_ports
+    setup_tailscale_routing
     fix_kubectl_wrapper
 }
 
@@ -275,6 +286,7 @@ build_postgres_image() {
 # ------------------------------------------------------------------
 # Deploy first-party via Kustomize
 # PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# Idempotent — aman dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_kustomize() {
     log "Deploying first-party services (Kustomize)..."
@@ -286,22 +298,126 @@ deploy_kustomize() {
     # Create namespace
     kubectl create namespace infra 2>/dev/null || true
 
-    # Create infra-secrets dari .env
-    log "Creating infra-secrets..."
-    envsubst < "$SCRIPT_DIR/kubernetes/infra/base/secrets-template.yaml" | kubectl apply -f - 2>/dev/null || true
+    # --- Pre-flight checks ---
+    log "Pre-flight: checking cluster health..."
+    if ! kubectl cluster-info &>/dev/null; then
+        err "Cannot reach Kubernetes cluster. Is K3s running?"
+    fi
+    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+
+    # --- infra-secrets (hanya create, jangan overwrite) ---
+    if kubectl get secret infra-secrets -n infra &>/dev/null; then
+        log "infra-secrets already exists — skipping (delete manually to regenerate)"
+    else
+        log "Creating infra-secrets from .env..."
+        envsubst < "$SCRIPT_DIR/kubernetes/infra/base/secrets-template.yaml" | kubectl apply -f -
+        log "infra-secrets created ✓"
+    fi
+
+    # --- tunnel-token secret (hanya create, jangan overwrite) ---
+    if [ -z "${CF_TUNNEL_TOKEN:-}" ]; then
+        warn "CF_TUNNEL_TOKEN is empty in .env — cloudflared tunnel will fail"
+        warn "Set CF_TUNNEL_TOKEN in $SCRIPT_DIR/.env and re-run"
+    elif kubectl get secret tunnel-token -n infra &>/dev/null; then
+        # Verifikasi token valid (bukan placeholder envsubst)
+        local token_val
+        token_val=$(kubectl get secret tunnel-token -n infra -o jsonpath='{.data.token}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+        if [ -n "$token_val" ] && [ "$token_val" != '${CF_TUNNEL_TOKEN}' ]; then
+            log "tunnel-token already exists with valid token — skipping"
+        else
+            warn "tunnel-token exists but contains placeholder — regenerating from .env..."
+            kubectl create secret generic tunnel-token -n infra \
+                --from-literal=token="${CF_TUNNEL_TOKEN}" \
+                --dry-run=client -o yaml | kubectl apply -f -
+        fi
+    else
+        log "Creating tunnel-token from .env..."
+        kubectl create secret generic tunnel-token -n infra \
+            --from-literal=token="${CF_TUNNEL_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+    fi
 
     # Default derivatif
     export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
-
-    # Wait for CoreDNS
-    log "Waiting for CoreDNS..."
-    kubectl wait --for=condition=ready pod -l k8s-app=kube-dns -n kube-system --timeout=120s 2>/dev/null || true
+    export CLOUDBEAVER_HOSTNAME="${CLOUDBEAVER_HOSTNAME:-db.${DOMAIN:-faisalaffan.com}}"
+    export MINIO_CONSOLE_HOSTNAME="${MINIO_CONSOLE_HOSTNAME:-minio.${DOMAIN:-faisalaffan.com}}"
+    export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN:-faisalaffan.com}}"
+    export EXCALIDRAW_HOSTNAME="${EXCALIDRAW_HOSTNAME:-excalidraw.${DOMAIN:-faisalaffan.com}}"
+    export REDIS_UI_HOSTNAME="${REDIS_UI_HOSTNAME:-redis-ui.${DOMAIN:-faisalaffan.com}}"
+    export REDPANDA_CONSOLE_HOSTNAME="${REDPANDA_CONSOLE_HOSTNAME:-redpanda.${DOMAIN:-faisalaffan.com}}"
+    export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN:-faisalaffan.com}}"
+    export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
+    export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
+    export LANGFUSE_HOSTNAME="${LANGFUSE_HOSTNAME:-langfuse.${DOMAIN:-faisalaffan.com}}"
+    export LANGFUSE_RETENTION_DAYS="${LANGFUSE_RETENTION_DAYS:-\"7\"}"
+    export LANGFUSE_BACKUP_RETENTION_DAYS="${LANGFUSE_BACKUP_RETENTION_DAYS:-\"7\"}"
+    export LANGFUSE_BACKUP_SCHEDULE="${LANGFUSE_BACKUP_SCHEDULE:-0 2 * * *}"
+    export LANGFUSE_FLUSH_SCHEDULE="${LANGFUSE_FLUSH_SCHEDULE:-15 3 * * *}"
+    export LANGFUSE_BACKUP_DATA_SIZE="${LANGFUSE_BACKUP_DATA_SIZE:-20Gi}"
+    export CLICKHOUSE_VERSION="${CLICKHOUSE_VERSION:-24.8-alpine}"
+    export CLICKHOUSE_PASSWORD="${CLICKHOUSE_PASSWORD:-clickhouse_secret_2026}"
+    export CLICKHOUSE_DATA_SIZE="${CLICKHOUSE_DATA_SIZE:-20Gi}"
+    export CLICKHOUSE_MEMORY_REQUEST="${CLICKHOUSE_MEMORY_REQUEST:-512Mi}"
+    export CLICKHOUSE_MEMORY_LIMIT="${CLICKHOUSE_MEMORY_LIMIT:-2Gi}"
+    export CLICKHOUSE_CPU_REQUEST="${CLICKHOUSE_CPU_REQUEST:-200m}"
+    export CLICKHOUSE_CPU_LIMIT="${CLICKHOUSE_CPU_LIMIT:-2}"
+    export LANGFUSE_VERSION="${LANGFUSE_VERSION:-3}"
+    export MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
+    export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
+    export B2_ENDPOINT="${B2_ENDPOINT:-https://s3.us-west-004.backblazeb2.com}"
+    export B2_BUCKET="${B2_BUCKET:-my-homelab-k3s-backups}"
+    export B2_PREFIX="${B2_PREFIX:-k3s-snapshots}"
+    export B2_APPLICATION_KEY_ID="${B2_APPLICATION_KEY_ID:-\"\"}"
+    export B2_APPLICATION_KEY="${B2_APPLICATION_KEY:-\"\"}"
+    export RESTIC_PASSWORD="${RESTIC_PASSWORD:-}"
+    export RESTIC_REPOSITORY="${RESTIC_REPOSITORY:-s3:${B2_ENDPOINT}/${B2_BUCKET}/restic-pvs}"
+    export RESTIC_BACKUP_SCHEDULE="${RESTIC_BACKUP_SCHEDULE:-0 */6 * * *}"
+    export RESTIC_RETENTION_KEEP_DAILY="${RESTIC_RETENTION_KEEP_DAILY:-7}"
+    export RESTIC_RETENTION_KEEP_WEEKLY="${RESTIC_RETENTION_KEEP_WEEKLY:-4}"
+    export RESTIC_RETENTION_KEEP_MONTHLY="${RESTIC_RETENTION_KEEP_MONTHLY:-3}"
+    export RESTIC_EXCLUDE_REGISTRY="${RESTIC_EXCLUDE_REGISTRY:-true}"
 
     # Build kustomize + substitute env vars + apply
+    # Filter: skip PVC errors (cannot patch storage), surface real errors
     log "Applying infra kustomization..."
-    kubectl kustomize . | envsubst | kubectl apply -f - || warn "Kustomize apply had errors"
+    local apply_output apply_rc
+    apply_output=$(kubectl kustomize . | envsubst | kubectl apply -f - 2>&1)
+    apply_rc=$?
+
+    # Filter known-harmless errors (PVC storage resize, unchanged resources)
+    local real_errors
+    real_errors=$(echo "$apply_output" | grep -v "unchanged\|configured\|created" | grep -iE "error|Error|failed|invalid" || true)
+
+    if [ -n "$real_errors" ]; then
+        # Check apakah cuma PVC errors yg harmless
+        local non_pvc_errors
+        non_pvc_errors=$(echo "$real_errors" | grep -v "PersistentVolumeClaim.*field can not be less than status" || true)
+        if [ -n "$non_pvc_errors" ]; then
+            warn "Kustomize apply had errors:"
+            echo "$non_pvc_errors" | while IFS= read -r line; do warn "  $line"; done
+        else
+            log "Kustomize applied (PVC size warnings ignored — harmless)"
+        fi
+    else
+        log "Kustomize applied clean ✓"
+    fi
 
     log "Infrastructure deployed ✓"
+}
+
+# ------------------------------------------------------------------
+# Deploy environment partitions (Dev & Prod Quotas, LimitRanges, RBAC, Ingress)
+# ------------------------------------------------------------------
+deploy_environments() {
+    log "Deploying environment partitions (Dev & Prod)..."
+    if [ -d "$ENVIRONMENTS_DIR" ]; then
+        kubectl kustomize "$ENVIRONMENTS_DIR" | kubectl apply -f -
+        log "Environments deployed ✓"
+    else
+        warn "Environments directory not found: $ENVIRONMENTS_DIR"
+    fi
 }
 
 # ------------------------------------------------------------------
@@ -336,11 +452,103 @@ fix_coredns_force_tcp() {
 }
 
 # ------------------------------------------------------------------
+# HashiCorp Vault — Init, Unseal & Auto-configure (K8s Auth + KV v2)
+# ------------------------------------------------------------------
+configure_hashicorp_vault() {
+    log "Configuring HashiCorp Vault..."
+
+    # 1. Pastikan pod vault-0 ada dan ready/running
+    if ! kubectl get pod vault-0 -n infra &>/dev/null; then
+        warn "vault-0 pod not found in namespace infra — skipping Vault auto-configuration"
+        return
+    fi
+
+    log "Waiting for vault-0 pod to be running..."
+    kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 -n infra --timeout=120s 2>/dev/null || true
+
+    local sealed_file="$SCRIPT_DIR/SEALED_TOKEN_VAULT.md"
+    local vault_status_out
+    vault_status_out=$(kubectl exec -n infra vault-0 -c vault -- vault status 2>&1 || true)
+
+    # Inisialisasi jika belum di-init
+    if echo "$vault_status_out" | grep -qi "Initialized.*false"; then
+        log "Initializing Vault..."
+        local init_out
+        init_out=$(kubectl exec -n infra vault-0 -c vault -- vault operator init 2>&1)
+        echo "$init_out" > "$sealed_file"
+        chmod 600 "$sealed_file"
+        log "Vault initialized! Keys and Root Token saved to $sealed_file"
+        vault_status_out=$(kubectl exec -n infra vault-0 -c vault -- vault status 2>&1 || true)
+    fi
+
+    # Unseal jika tersegel (sealed)
+    if echo "$vault_status_out" | grep -qi "Sealed.*true"; then
+        log "Vault is sealed. Attempting unseal using $sealed_file..."
+        if [ -f "$sealed_file" ]; then
+            local keys
+            keys=$(grep "Unseal Key" "$sealed_file" | awk '{print $NF}' | head -3)
+            for k in $keys; do
+                kubectl exec -n infra vault-0 -c vault -- vault operator unseal "$k" >/dev/null 2>&1 || true
+            done
+            log "Vault unseal keys submitted ✓"
+        else
+            warn "Cannot unseal Vault: $sealed_file not found"
+            return
+        fi
+    fi
+
+    # Ambil root token
+    local root_token="${VAULT_ROOT_TOKEN:-}"
+    if [ -z "$root_token" ] && [ -f "$sealed_file" ]; then
+        root_token=$(grep -i "Initial Root Token:" "$sealed_file" | awk '{print $NF}' | tr -d '\r\n')
+    fi
+
+    if [ -z "$root_token" ]; then
+        warn "Root token not found. Skipping Kubernetes Auth & KV setup in Vault"
+        return
+    fi
+
+    # 3. Enable & configure Kubernetes Auth
+    local auth_list
+    auth_list=$(kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault auth list 2>/dev/null || true)
+    if ! echo "$auth_list" | grep -q "kubernetes/"; then
+        log "Enabling Kubernetes Auth in Vault..."
+        kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault auth enable kubernetes >/dev/null 2>&1 || true
+    fi
+
+    log "Configuring Kubernetes Auth host endpoint..."
+    kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault write auth/kubernetes/config \
+        kubernetes_host="https://kubernetes.default.svc" >/dev/null 2>&1 || true
+
+    # 4. Enable KV-v2 secrets engine di secret/ jika belum aktif
+    local secrets_list
+    secrets_list=$(kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault secrets list 2>/dev/null || true)
+    if ! echo "$secrets_list" | grep -q "secret/"; then
+        log "Enabling kv-v2 secret engine at secret/..."
+        kubectl exec -n infra vault-0 -c vault -- env VAULT_TOKEN="$root_token" vault secrets enable -path=secret kv-v2 >/dev/null 2>&1 || true
+    fi
+
+    log "HashiCorp Vault configured ✓ (Kubernetes Auth & Secret Engine ready)"
+}
+
+# ------------------------------------------------------------------
 # Full deploy: HelmCharts (third-party) → Kustomize (first-party)
 # Idempotent — bisa dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_all() {
     log "=== Deploying all infrastructure ==="
+
+    # Wait for K3s API server to be ready (after restart)
+    log "Waiting for K3s API server to be ready..."
+    local retries=30
+    while ! kubectl get nodes &>/dev/null; do
+        sleep 2
+        retries=$((retries - 1))
+        if [ $retries -le 0 ]; then
+            err "Timed out waiting for K3s API server"
+        fi
+    done
+    log "K3s API server is ready ✓"
 
     # 0. Fix CoreDNS — force TCP DNS (sebelum HelmCharts yg butuh DNS)
     fix_coredns_force_tcp
@@ -359,6 +567,12 @@ deploy_all() {
     # 4. First-party: all infra services via Kustomize
     deploy_kustomize
 
+    # 4.1 Environments: Dev & Prod partitions, quotas, limitranges, RBAC, ingress
+    deploy_environments
+
+    # 5. HashiCorp Vault: Unseal & configure Auth + Secrets
+    configure_hashicorp_vault
+
     log "=== Deploy complete ==="
     kubectl get pods,svc -n infra -o wide 2>/dev/null || true
 }
@@ -367,6 +581,9 @@ deploy_all() {
 # Fix k3s directory permissions — pastikan user bisa baca /etc/rancher/k3s
 # ------------------------------------------------------------------
 fix_k3s_perms() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
     if [ -d /etc/rancher/k3s ] && [ ! -r /etc/rancher/k3s/k3s.yaml ]; then
         log "Fixing /etc/rancher/k3s permissions..."
         sudo chmod 755 /etc/rancher/k3s
@@ -374,15 +591,97 @@ fix_k3s_perms() {
 }
 
 # ------------------------------------------------------------------
-# Fix UFW — open k3s API port (Tailscale operator handles db access)
+# Configure k3s registries — allow containerd to pull from local HTTP registry
+# ------------------------------------------------------------------
+setup_k3s_registries() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
+    local registries_file="/etc/rancher/k3s/registries.yaml"
+    local needs_restart=false
+
+    if [ ! -f "$registries_file" ] || ! grep -q "docker-registry.infra.svc.cluster.local" "$registries_file" 2>/dev/null; then
+        log "Configuring K3s local container registry mirror in $registries_file..."
+        sudo mkdir -p /etc/rancher/k3s
+        local public_ip="${NODE_PUBLIC_IP:-139.0.15.90}"
+        cat << EOF | sudo tee "$registries_file" >/dev/null
+mirrors:
+  "${public_ip}:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+  "localhost:5000":
+    endpoint:
+      - "http://127.0.0.1:5000"
+  "docker-registry.infra.svc.cluster.local:5000":
+    endpoint:
+      - "http://docker-registry.infra.svc.cluster.local:5000"
+EOF
+        sudo chmod 644 "$registries_file"
+        needs_restart=true
+        log "K3s registries.yaml configured ✓"
+    fi
+
+    if [ "$needs_restart" = true ] && systemctl is-active --quiet k3s 2>/dev/null; then
+        log "Restarting K3s to apply registries mirror configuration..."
+        sudo systemctl restart k3s
+        sleep 5
+    fi
+}
+
+# ------------------------------------------------------------------
+# Fix UFW — open k3s API port & allow routed traffic for Tailscale & CNI
 # ------------------------------------------------------------------
 fix_ufw_ports() {
-    if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        if ! sudo ufw status 2>/dev/null | grep -q "6443/tcp"; then
-            log "Opening UFW port 6443 for k3s API..."
-            sudo ufw allow 6443/tcp
-        fi
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
     fi
+    if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
+        log "Configuring UFW firewall rules for Tailscale & K3s..."
+        sudo ufw allow 6443/tcp >/dev/null 2>&1 || true
+        sudo ufw allow in on tailscale0 >/dev/null 2>&1 || true
+        sudo ufw allow out on tailscale0 >/dev/null 2>&1 || true
+        sudo ufw allow in on cni0 >/dev/null 2>&1 || true
+        sudo ufw allow out on cni0 >/dev/null 2>&1 || true
+        sudo ufw default allow routed >/dev/null 2>&1 || true
+        if [ -f /etc/default/ufw ] && grep -q 'DEFAULT_FORWARD_POLICY="DROP"' /etc/default/ufw; then
+            sudo sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+            sudo ufw reload >/dev/null 2>&1 || true
+        fi
+        log "UFW configured for routed traffic ✓"
+    fi
+}
+
+# ------------------------------------------------------------------
+# Setup Tailscale Subnet Routing (Sysctl + IPTables FORWARD rules)
+# ------------------------------------------------------------------
+setup_tailscale_routing() {
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        return
+    fi
+    log "Configuring Tailscale Subnet Router forwarding..."
+
+    # Enable IPv4/IPv6 forwarding permanently in sysctl
+    if [ ! -f /etc/sysctl.d/99-tailscale.conf ] || ! grep -q "net.ipv4.ip_forward = 1" /etc/sysctl.d/99-tailscale.conf 2>/dev/null; then
+        log "Enabling IP forwarding in /etc/sysctl.d/99-tailscale.conf..."
+        cat << 'EOF' | sudo tee /etc/sysctl.d/99-tailscale.conf >/dev/null
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+EOF
+        sudo sysctl -p /etc/sysctl.d/99-tailscale.conf >/dev/null 2>&1 || true
+    fi
+
+    # Ensure iptables FORWARD rules for tailscale0 and cni0 exist
+    sudo iptables -C FORWARD -i tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i tailscale0 -j ACCEPT
+    sudo iptables -C FORWARD -o tailscale0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o tailscale0 -j ACCEPT
+    sudo iptables -C FORWARD -i cni0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -i cni0 -j ACCEPT
+    sudo iptables -C FORWARD -o cni0 -j ACCEPT 2>/dev/null || sudo iptables -I FORWARD 1 -o cni0 -j ACCEPT
+
+    # Ensure iptables NAT MASQUERADE for Tailscale subnet traffic
+    sudo iptables -t nat -C POSTROUTING -s 100.64.0.0/10 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -s 100.64.0.0/10 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o tailscale0 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o cni0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o cni0 -j MASQUERADE
+    sudo iptables -t nat -C POSTROUTING -o flannel.1 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -I POSTROUTING 1 -o flannel.1 -j MASQUERADE
+    log "Tailscale subnet routing & NAT configured ✓"
 }
 
 # ------------------------------------------------------------------
@@ -429,6 +728,11 @@ fix_kubeconfig() {
         cp "$kubeconfig" "$default_kubeconfig"
         chmod 600 "$default_kubeconfig"
         log "Kubeconfig ready: $default_kubeconfig"
+    fi
+
+    # Pastikan default_kubeconfig selalu mengarah ke 127.0.0.1 untuk akses lokal di VPS
+    if [ -f "$default_kubeconfig" ]; then
+        sed -i 's|server: https://.*:6443|server: https://127.0.0.1:6443|' "$default_kubeconfig"
     fi
 
     # Set KUBECONFIG permanent di .bashrc
@@ -490,12 +794,76 @@ setup_mcp() {
 }
 
 # ------------------------------------------------------------------
+# Verify TLS — check cert-manager issues certificates after deploy
+# ------------------------------------------------------------------
+verify_tls() {
+    log "Verifying TLS certificates..."
+    kubectl get clusterissuer 2>/dev/null | grep -q "True" || {
+        warn "No ready ClusterIssuer found — TLS will not work"
+        return
+    }
+
+    # Check all ingresses with cert-manager annotation
+    local tls_ingresses
+    tls_ingresses=$(kubectl get ingress -A -o json 2>/dev/null | jq -r '
+      .items[] | select(.metadata.annotations["cert-manager.io/cluster-issuer"] != null) |
+      "\(.metadata.namespace)/\(.metadata.name)"
+    ' 2>/dev/null || true)
+
+    if [ -z "$tls_ingresses" ]; then
+        warn "No ingresses with cert-manager annotation found"
+        return
+    fi
+
+    local timeout=180
+    local start_time=$(date +%s)
+
+    for ingress_ref in $tls_ingresses; do
+        local ns="${ingress_ref%%/*}"
+        local name="${ingress_ref##*/}"
+
+        # Extract TLS secret name from ingress
+        local secret_name
+        secret_name=$(kubectl get ingress "$name" -n "$ns" -o jsonpath='{.spec.tls[*].secretName}' 2>/dev/null || true)
+
+        if [ -z "$secret_name" ]; then
+            warn "Ingress $ns/$name has no tls.secretName — skipping"
+            continue
+        fi
+
+        log "Waiting for TLS cert: $ns/$secret_name (timeout ${timeout}s)..."
+
+        while true; do
+            local elapsed=$(($(date +%s) - start_time))
+            if [ $elapsed -ge $timeout ]; then
+                warn "Timeout waiting for TLS cert $ns/$secret_name after ${timeout}s"
+                break
+            fi
+
+            local cert_ready
+            cert_ready=$(kubectl get cert "$secret_name" -n "$ns" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+
+            if [ "$cert_ready" = "True" ]; then
+                log "TLS cert $ns/$secret_name ✓ Ready"
+                break
+            fi
+
+            # Show challenge state if stuck
+            local challenge_state
+            challenge_state=$(kubectl get challenge -n "$ns" -o jsonpath='{range .items[*]}{.status.reason}{"\n"}{end}' 2>/dev/null | head -1 || echo "waiting...")
+            log "  $ns/$secret_name: $cert_ready ($challenge_state)"
+
+            sleep 10
+        done
+    done
+
+    log "TLS verification complete"
+}
+
+# ------------------------------------------------------------------
 # Summary
 # ------------------------------------------------------------------
 print_summary() {
-    echo ""
-    echo "============================================"
-    echo "  DevOps Setup Complete (Ansible)"
     echo ""
     echo "============================================"
     echo "  DevOps Setup Complete"
@@ -506,20 +874,36 @@ print_summary() {
     echo "  Kustomize:   $KUSTOMIZE_DIR"
     echo "  HelmCharts:  $HELMCHART_DIR"
     echo ""
-    echo "  Services (on K3s):"
-    echo "    PostgreSQL 17:  postgres.infra:5432"
-    echo "    MySQL 8.4:      mysql.infra:3306"
-    echo "    VictoriaMetrics: victoriametrics.infra:8428"
-    echo "    Loki:            loki.infra:3100"
-    echo "    Tempo:           tempo.infra:3200"
-    echo "    Pyroscope:       pyroscope.infra:4040"
+    echo "  Tailscale Subnet Router & Direct Local Access:"
+    echo "    Service CIDR: 10.43.0.0/16  |  Pod CIDR: 10.42.0.0/16"
+    echo "    Split DNS:    *.svc.cluster.local -> 10.43.0.10 (CoreDNS)"
+    echo ""
+    echo "  Key Internal Endpoints (Accessible from Tailnet):"
+    echo "    PostgreSQL 17:   postgres.infra:5432"
+    echo "    MySQL 8.4:       mysql.infra:3306"
+    echo "    Redis:           redis.infra:6379"
+    echo "    Redpanda Kafka:  redpanda.infra:9092"
+    echo "    NATS:            nats.infra:4222"
+    echo "    EMQX MQTT:       emqx.infra:1883"
+    echo "    MongoDB:         mongodb.infra:27017"
+    echo "    MinIO S3 / UI:   minio.infra:9000 / :9001"
     echo "    Grafana:         grafana.infra:3000"
+    echo "    VictoriaMetrics: victoriametrics.infra:8428"
+    echo "    Loki / Tempo:    loki.infra:3100 / tempo.infra:3200"
+    echo "    HashiCorp Vault: vault.infra:8200"
+    echo "    Qdrant Vector DB: qdrant.infra:6333 (HTTP/UI) / :6334 (gRPC)"
+    echo "    Langfuse LLM:    langfuse-web.infra:3000 / clickhouse:8123"
+    echo "    Resolva Backend: reconciliation-backend-svc.resolva:3020"
+    echo "    Resolva AI:      reconciliation-ai-svc.resolva:3000"
+    echo "    E-Wallet API:    ewallet-api.ewallet:3000"
+    echo "    Wasteco API:     wasteco-api.wasteco:3000"
+    echo "    GeoStack API:    api.geostack:3000"
     echo ""
     echo "  Kubeconfig:   ~/.kube/k3s-config"
     echo ""
     echo "  Quick commands:"
     echo "    export KUBECONFIG=~/.kube/k3s-config"
-    echo "    kubectl get pods -n infra"
+    echo "    kubectl get pods -A"
     echo "    kubectl kustomize $KUSTOMIZE_DIR"
     echo ""
     echo "============================================"
@@ -538,31 +922,46 @@ main() {
     echo ""
 
     # Cache sudo password once (needed for ansible become + apt installs)
-    if ! sudo -n true 2>/dev/null; then
+    # Non-interactive mode: skip sudo, run only kubectl-based fixes
+    if [ ! -t 0 ]; then
+        warn "Non-interactive mode — skipping sudo-requiring steps (ansible, apt)"
+        SUDO_SKIP=true
+    fi
+
+    if [ "${SUDO_SKIP:-false}" = false ] && [ -z "${SUDO_PASS:-}" ]; then
         read -sp "[sudo] password for $USER: " SUDO_PASS
         echo
-        # Validate immediately
         if echo "$SUDO_PASS" | sudo -S true 2>/dev/null; then
             export SUDO_PASS
             log "Sudo access confirmed"
         else
             warn "Wrong sudo password — some steps may fail"
+            SUDO_SKIP=true
         fi
     fi
 
     detect_os
     install_base
     fix_k3s_perms
+    setup_k3s_registries
     fix_ufw_ports
+    setup_tailscale_routing
     install_uv
     fix_kubectl_wrapper
     install_ansible
     setup_ssh
     setup_vault
     install_toolbox
-    bootstrap_k3s "$@"
+
+    if [ "${SUDO_SKIP:-false}" = true ]; then
+        warn "Skipping bootstrap_k3s (needs sudo)"
+    else
+        bootstrap_k3s "$@"
+    fi
+
     deploy_all
     setup_mcp
+    verify_tls
     print_summary
 }
 

@@ -1,0 +1,92 @@
+# =========================================================================
+# Mongo Express — Web UI for MongoDB
+# Exposed via Ingress → mongo.faisalaffan.com
+# Bypass HelmChart auth limitation — env vars langsung
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-express
+  namespace: infra
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+  selector:
+    app: mongo-express
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-express
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo-express
+  template:
+    metadata:
+      labels:
+        app: mongo-express
+    spec:
+      containers:
+        - name: mongo-express
+          image: mongo-express:1.0.2
+          ports:
+            - containerPort: 8081
+          env:
+            - name: ME_CONFIG_MONGODB_SERVER
+              value: mongodb.infra
+            - name: ME_CONFIG_MONGODB_PORT
+              value: "27017"
+            - name: ME_CONFIG_MONGODB_ENABLE_ADMIN
+              value: "true"
+            - name: ME_CONFIG_MONGODB_AUTH_USERNAME
+              value: root
+            - name: ME_CONFIG_MONGODB_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-express-auth
+                  key: password
+            - name: ME_CONFIG_MONGODB_AUTH_DATABASE
+              value: admin
+            - name: ME_CONFIG_SITE_BASEURL
+              value: /
+            - name: ME_CONFIG_BASICAUTH
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-express-auth
+  namespace: infra
+stringData:
+  password: "${MONGODB_ROOT_PASSWORD}"
