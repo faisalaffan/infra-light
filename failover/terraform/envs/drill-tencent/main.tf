@@ -40,9 +40,11 @@ locals {
     ssh_public_key             = var.ssh_public_key
     gitops_repo_url            = var.gitops_repo_url
     gitops_branch              = var.gitops_branch
-    restore_script_b64gz        = base64gzip(file("${path.module}/../../../bootstrap/restore.sh"))
-    healthcheck_script_b64gz    = base64gzip(file("${path.module}/../../../bootstrap/healthcheck.sh"))
-    startup_daemon_script_b64gz = base64gzip(file("${path.module}/../../../bootstrap/failover-startup-daemon.sh"))
+    restore_script_b64gz            = base64gzip(file("${path.module}/../../../bootstrap/restore.sh"))
+    healthcheck_script_b64gz        = base64gzip(file("${path.module}/../../../bootstrap/healthcheck.sh"))
+    startup_daemon_script_b64gz     = base64gzip(file("${path.module}/../../../bootstrap/failover-startup-daemon.sh"))
+    cloudflare_standby_tunnel_token = var.cloudflare_standby_tunnel_token
+    vault_token_b64gz               = fileexists("${path.module}/../../../../SEALED_TOKEN_VAULT.md") ? base64gzip(file("${path.module}/../../../../SEALED_TOKEN_VAULT.md")) : ""
   })
 }
 

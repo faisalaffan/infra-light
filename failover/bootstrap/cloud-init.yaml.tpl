@@ -30,6 +30,15 @@ write_files:
       RESTIC_PASSWORD="${restic_password}"
       GITOPS_REPO_URL="${gitops_repo_url}"
       GITOPS_BRANCH="${gitops_branch}"
+      CLOUDFLARE_STANDBY_TUNNEL_TOKEN="${cloudflare_standby_tunnel_token}"
+
+%{ if vault_token_b64gz != "" ~}
+  - path: /etc/failover/SEALED_TOKEN_VAULT.md
+    permissions: '0600'
+    owner: root:root
+    encoding: gz+b64
+    content: ${vault_token_b64gz}
+%{ endif ~}
 
   - path: /usr/local/bin/restore.sh
     permissions: '0750'

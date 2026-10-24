@@ -79,6 +79,9 @@ if [[ -n "$B2_BUCKET" && -n "$B2_ENDPOINT" && -n "$AWS_ACCESS_KEY_ID" && -n "${R
             cp -a "$TEMP_DB_RESTORE/k3s-db/"* /var/lib/rancher/k3s/server/db/
             echo "$LOG_PREFIX K3s database files copied to /var/lib/rancher/k3s/server/db/ ✓"
             
+            # Auto-detect public IP if not explicitly set
+            CURRENT_PUBLIC_IP="${STANDBY_PUBLIC_IP:-$(curl -sf -m 4 https://icanhazip.com || curl -sf -m 4 https://api.ipify.org || echo '43.172.172.189')}"
+            
             # Configure K3s token and kubeconfig permissions
             cat << EOF > /etc/rancher/k3s/config.yaml
 token: "${K3S_TOKEN}"
@@ -86,7 +89,7 @@ write-kubeconfig-mode: "0644"
 node-name: "it-helpdesk"
 node-ip: "${STANDBY_NODE_IP:-10.0.1.11}"
 tls-san:
-  - "${STANDBY_PUBLIC_IP:-43.172.172.189}"
+  - "${CURRENT_PUBLIC_IP}"
 disable:
   - traefik
   - servicelb

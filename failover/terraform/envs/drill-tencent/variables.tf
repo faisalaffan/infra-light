@@ -179,3 +179,11 @@ variable "standby_origin_address" {
   type        = string
   default     = ""
 }
+
+variable "cloudflare_standby_tunnel_token" {
+  description = "Cloudflare Standby Tunnel Token for cloudflared"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+

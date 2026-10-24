@@ -41,6 +41,7 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export TF_VAR_homelab_origin_address="${CLOUDFLARE_HOMELAB_ORIGIN_ADDRESS:-${CLOUDFLARE_HOMELAB_TUNNEL_UUID:+$CLOUDFLARE_HOMELAB_TUNNEL_UUID.cfargotunnel.com}}"
     export TF_VAR_vultr_origin_address="${CLOUDFLARE_VULTR_ORIGIN_ADDRESS:-${CLOUDFLARE_VULTR_TUNNEL_UUID:+$CLOUDFLARE_VULTR_TUNNEL_UUID.cfargotunnel.com}}"
     export TF_VAR_tencent_origin_address="${CLOUDFLARE_TENCENT_ORIGIN_ADDRESS:-${CLOUDFLARE_TENCENT_TUNNEL_UUID:+$CLOUDFLARE_TENCENT_TUNNEL_UUID.cfargotunnel.com}}"
+    export TF_VAR_cloudflare_standby_tunnel_token="${CLOUDFLARE_STANDBY_TUNNEL_TOKEN:-}"
     export TF_VAR_prod_record_name="${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
     export TF_VAR_drill_record_name="drill.${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
     export TF_VAR_ssh_public_key="${SSH_PUBLIC_KEY:-${SSH_KEY:-$(cat ~/.ssh/id_rsa.pub 2>/dev/null || cat ~/.ssh/id_ed25519.pub 2>/dev/null || echo '')}}"
