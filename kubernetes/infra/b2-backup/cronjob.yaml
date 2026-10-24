@@ -61,6 +61,16 @@ spec:
                     restic unlock || true
                   fi
 
+                  EXCLUDE_REGISTRY="${RESTIC_EXCLUDE_REGISTRY:-${EXCLUDE_REGISTRY:-true}}"
+                  EXCLUDE_REGISTRY="$(echo "$EXCLUDE_REGISTRY" | tr -d '\"')"
+                  EXCLUDE_REGISTRY_ARG=""
+                  if [ "$EXCLUDE_REGISTRY" = "true" ]; then
+                    echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Excluding docker-registry (*docker-registry*)..."
+                    EXCLUDE_REGISTRY_ARG="--exclude=*docker-registry*"
+                  else
+                    echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Including docker-registry in backup..."
+                  fi
+
                   echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /storage (Persistent Volumes)..."
                   restic backup /storage \
                     --verbose \
@@ -69,7 +79,7 @@ spec:
                     --exclude=lost+found \
                     --exclude='*.sock' \
                     --exclude='*.tmp' \
-                    --exclude='*docker-registry*'
+                    ${EXCLUDE_REGISTRY_ARG}
 
                   echo "[$(date -u '+%Y-%m-%d %H:%M:%SZ')] Backing up /k3s-db (Cluster Database)..."
                   restic backup /k3s-db \

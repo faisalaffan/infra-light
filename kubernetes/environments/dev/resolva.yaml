@@ -212,6 +212,9 @@ spec:
             limits:
               cpu: 1000m
               memory: 2Gi
+          volumeMounts:
+            - name: logs-volume
+              mountPath: /app/logs
           readinessProbe:
             httpGet:
               path: /health
@@ -230,3 +233,6 @@ spec:
               port: 8000
             periodSeconds: 2
             failureThreshold: 30
+      volumes:
+        - name: logs-volume
+          emptyDir: {}

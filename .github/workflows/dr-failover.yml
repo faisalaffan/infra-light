@@ -1,0 +1,175 @@
+name: Automated DR Failover Sentinel (Tencent Standby)
+
+on:
+  repository_dispatch:
+    types:
+      - homelab-down
+      - failover-trigger
+      - upptime-incident
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'DR Action to execute'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - start
+          - stop
+          - status
+          - apply
+          - destroy
+      environment:
+        description: 'Environment target'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - drill
+      provider:
+        description: 'Cloud Provider'
+        required: true
+        default: 'tencent'
+        type: choice
+        options:
+          - tencent
+          - vultr
+
+env:
+  TENCENTCLOUD_SECRET_ID: ${{ secrets.TENCENTCLOUD_SECRET_ID }}
+  TENCENTCLOUD_SECRET_KEY: ${{ secrets.TENCENTCLOUD_SECRET_KEY }}
+  TENCENTCLOUD_REGION: ${{ secrets.TENCENTCLOUD_REGION || 'ap-singapore' }}
+  TENCENTCLOUD_ZONE: ${{ secrets.TENCENTCLOUD_ZONE || 'ap-singapore-2' }}
+  B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID }}
+  B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+  B2_BUCKET: ${{ secrets.B2_BUCKET }}
+  B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+  RESTIC_PASSWORD: ${{ secrets.RESTIC_PASSWORD }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  FAILOVER_DOMAIN: ${{ secrets.FAILOVER_DOMAIN || 'homelab.faisalaffan.com' }}
+  K3S_TOKEN: ${{ secrets.K3S_TOKEN }}
+  SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+
+jobs:
+  failover-sentinel:
+    name: Execute DR Sentinel Decision
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Evaluate Standby Status & Execute Failover
+        id: sentinel
+        run: |
+          set -e
+          ACTION="${{ github.event.inputs.action || 'auto' }}"
+          ENV_NAME="${{ github.event.inputs.environment || 'prod' }}"
+          PROVIDER="${{ github.event.inputs.provider || 'tencent' }}"
+
+          echo "=========================================================="
+          echo "🚀 DR Sentinel Activated"
+          echo "Trigger Source: ${{ github.event_name }}"
+          echo "Requested Action: $ACTION | Environment: $ENV_NAME | Provider: $PROVIDER"
+          echo "=========================================================="
+
+          chmod +x failover/scripts/tencent_cvm.py failover/failover.sh
+
+          # Check current status of Tencent Standby VM
+          STATUS_JSON=$(python3 failover/scripts/tencent_cvm.py status || echo '{"status":"ERROR"}')
+          CURRENT_STATUS=$(echo "$STATUS_JSON" | jq -r '.status // "NOT_FOUND"')
+          INSTANCE_ID=$(echo "$STATUS_JSON" | jq -r '.instances[0].InstanceId // ""')
+          INSTANCE_NAME=$(echo "$STATUS_JSON" | jq -r '.instances[0].InstanceName // ""')
+          INSTANCE_IP=$(echo "$STATUS_JSON" | jq -r '.instances[0].PublicIpAddresses[0] // .instances[0].PrivateIpAddresses[0] // "N/A"')
+
+          echo "Current Standby State: $CURRENT_STATUS (Instance ID: $INSTANCE_ID, IP: $INSTANCE_IP)"
+          echo "current_status=$CURRENT_STATUS" >> $GITHUB_OUTPUT
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+          if [[ "$ACTION" == "status" ]]; then
+            echo "Status report generated."
+            exit 0
+          fi
+
+          if [[ "$ACTION" == "stop" ]]; then
+            echo "Stopping instance with zero-cost STOP_CHARGING..."
+            python3 failover/scripts/tencent_cvm.py stop "$INSTANCE_ID"
+            echo "action_taken=STOPPED_INSTANCE" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ "$ACTION" == "destroy" ]]; then
+            echo "Destroying infrastructure via Terraform..."
+            ./failover/failover.sh destroy "$ENV_NAME" "$PROVIDER"
+            echo "action_taken=DESTROYED_TERRAFORM" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # DUAL-PATH LOGIC (AUTO or START / APPLY)
+          if [[ "$ACTION" == "auto" || "$ACTION" == "start" ]]; then
+            if [[ "$CURRENT_STATUS" == "STOPPED" ]]; then
+              echo "✅ PATH A DETECTED: Warm Standby instance exists ($INSTANCE_ID) in STOPPED state."
+              echo "Starting CVM instance now..."
+              python3 failover/scripts/tencent_cvm.py start "$INSTANCE_ID"
+              echo "Instance start signal sent. Systemd failover-startup-daemon will sync B2 delta and open Cloudflare gate."
+              echo "action_taken=STARTED_WARM_INSTANCE" >> $GITHUB_OUTPUT
+
+            elif [[ "$CURRENT_STATUS" == "RUNNING" ]]; then
+              echo "ℹ️ Instance $INSTANCE_ID is ALREADY RUNNING."
+              echo "action_taken=ALREADY_RUNNING" >> $GITHUB_OUTPUT
+
+            else
+              echo "⚠️ PATH B DETECTED: No active/stopped instance found (Status: $CURRENT_STATUS)."
+              echo "Cold-provisioning Standby cluster via Terraform..."
+              ./failover/failover.sh apply "$ENV_NAME" "$PROVIDER"
+              echo "action_taken=PROVISIONED_COLD_TERRAFORM" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "$ACTION" == "apply" ]]; then
+            echo "Manual apply requested. Provisioning via Terraform..."
+            ./failover/failover.sh apply "$ENV_NAME" "$PROVIDER"
+            echo "action_taken=MANUAL_TERRAFORM_APPLIED" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Summary Report
+        if: always()
+        run: |
+          cat << 'EOF' >> $GITHUB_STEP_SUMMARY
+          ## 🛡️ Disaster Recovery Sentinel Execution Summary
+
+          | Item | Value |
+          |---|---|
+          | **Trigger Source** | `${{ github.event_name }}` |
+          | **Target Provider** | `${{ github.event.inputs.provider || 'tencent' }}` |
+          | **Environment** | `${{ github.event.inputs.environment || 'prod' }}` |
+          | **Standby State** | `${{ steps.sentinel.outputs.current_status || 'UNKNOWN' }}` |
+          | **Target Instance** | `${{ steps.sentinel.outputs.instance_id || 'N/A' }}` |
+          | **Action Executed** | `${{ steps.sentinel.outputs.action_taken || 'N/A' }}` |
+
+          ### 🔄 Architecture Highlights
+          - **Compute Cost While Idle**: **$0.00** (Stopped mode / No charges when stopped).
+          - **Cloudflare Gatekeeper**: `cloudflared` is sealed at `replicas: 0` until Backblaze B2 delta sync and database health are verified.
+          - **Zero Split-Brain**: Guaranteed by Standby ingress gatekeeper.
+          EOF
+
+      - name: Dispatch Telegram Alert (Optional)
+        if: env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG="🚨 *DR Failover Sentinel Executed*%0A%0A*Trigger:* ${{ github.event_name }}%0A*Action:* ${{ steps.sentinel.outputs.action_taken }}%0A*Instance:* ${{ steps.sentinel.outputs.instance_id }}%0A*Status:* ${{ steps.sentinel.outputs.current_status }}"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}&text=${MSG}&parse_mode=Markdown" || true

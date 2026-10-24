@@ -50,6 +50,31 @@ write_files:
     content: |
       ${healthcheck_script_content}
 
+  - path: /usr/local/bin/failover-startup-daemon.sh
+    permissions: '0750'
+    owner: root:root
+    content: |
+      ${startup_daemon_script_content}
+
+  - path: /etc/systemd/system/failover-startup.service
+    permissions: '0644'
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Failover Startup Daemon & Traffic Gatekeeper
+      After=network.target k3s.service
+      Wants=k3s.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/failover-startup-daemon.sh
+      RemainAfterExit=yes
+      StandardOutput=journal+console
+      StandardError=journal+console
+
+      [Install]
+      WantedBy=multi-user.target
+
 package_update: true
 packages:
   - curl
@@ -65,6 +90,8 @@ packages:
 runcmd:
   - echo "[FAILOVER] Starting bootstrap sequence at $(date)..."
   - mkdir -p /var/log/failover /var/lib/rancher/k3s/server/db/snapshots
+  - systemctl daemon-reload
+  - systemctl enable failover-startup.service
   - /usr/local/bin/restore.sh >> /var/log/failover/restore.log 2>&1
   - /usr/local/bin/healthcheck.sh >> /var/log/failover/healthcheck.log 2>&1 || true
   - echo "[FAILOVER] Bootstrap sequence finished at $(date)"

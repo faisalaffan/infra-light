@@ -109,6 +109,7 @@ resource "tencentcloud_instance" "this" {
   hostname                   = "${var.project_name}-${var.environment}"
   availability_zone          = local.selected_zone
   image_id                   = local.selected_image
+  instance_charge_type       = "POSTPAID_BY_HOUR"
   instance_type              = var.instance_type
   system_disk_type           = var.system_disk_type
   system_disk_size           = var.system_disk_size

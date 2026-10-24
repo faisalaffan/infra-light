@@ -11,12 +11,14 @@ LOG_PREFIX="[RESTORE $(date '+%Y-%m-%d %H:%M:%S')]"
 exec 200>"$RESTORE_LOCK"
 flock -n 200 || { echo "$LOG_PREFIX Another restore process is currently running. Exiting."; exit 0; }
 
-if [[ -f "$RESTORE_FLAG" ]]; then
-    echo "$LOG_PREFIX Cluster has already been restored successfully previously. Skipping."
+RESTORE_MODE="${1:-full}"
+
+if [[ -f "$RESTORE_FLAG" && "$RESTORE_MODE" != "--delta" && "$RESTORE_MODE" != "--force" ]]; then
+    echo "$LOG_PREFIX Cluster has already been restored successfully previously. Use --delta or --force to sync latest state."
     exit 0
 fi
 
-echo "$LOG_PREFIX === Starting Disaster Recovery Restore Sequence ==="
+echo "$LOG_PREFIX === Starting Disaster Recovery Restore Sequence (Mode: $RESTORE_MODE) ==="
 START_TIME=$(date +%s)
 
 # Load environment configuration
@@ -108,28 +110,31 @@ if [[ "$DB_RESTORED" == "false" && -n "$B2_BUCKET" && -n "$B2_ENDPOINT" && -n "$
 fi
 
 # 3. Install and run K3s
-echo "$LOG_PREFIX Installing K3s ($K3S_VERSION)..."
-
-if [[ -n "$LATEST_SNAPSHOT" && -f "$LATEST_SNAPSHOT" ]]; then
-    echo "$LOG_PREFIX Initializing K3s with cluster-reset from snapshot..."
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
-        INSTALL_K3S_EXEC="server --cluster-reset --from-dump=${LATEST_SNAPSHOT} --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
-        sh -
-    systemctl restart k3s
-elif [[ "$DB_RESTORED" == "true" ]]; then
-    echo "$LOG_PREFIX Installing K3s server on top of restored datastore..."
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
-        INSTALL_K3S_EXEC="server --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
-        sh -
-    
-    # Reconcile datastore certificates
-    rm -rf /var/lib/rancher/k3s/server/tls /var/lib/rancher/k3s/server/cred
-    systemctl restart k3s
+if [[ "$RESTORE_MODE" == "--delta" && -f "/etc/rancher/k3s/k3s.yaml" ]] && systemctl is-active --quiet k3s 2>/dev/null; then
+    echo "$LOG_PREFIX Running in delta mode: K3s is already active. Skipping K3s server reinstallation."
 else
-    echo "$LOG_PREFIX Installing fresh K3s server..."
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
-        INSTALL_K3S_EXEC="server --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
-        sh -
+    echo "$LOG_PREFIX Installing K3s ($K3S_VERSION)..."
+
+    if [[ -n "$LATEST_SNAPSHOT" && -f "$LATEST_SNAPSHOT" ]]; then
+        echo "$LOG_PREFIX Initializing K3s with cluster-reset from snapshot..."
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
+            INSTALL_K3S_EXEC="server --cluster-reset --from-dump=${LATEST_SNAPSHOT} --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
+            sleep 2
+        systemctl restart k3s || true
+    elif [[ "$DB_RESTORED" == "true" ]]; then
+        echo "$LOG_PREFIX Installing K3s server on top of restored datastore..."
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
+            INSTALL_K3S_EXEC="server --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
+            sh -
+        
+        sleep 2
+        systemctl restart k3s || true
+    else
+        echo "$LOG_PREFIX Installing fresh K3s server..."
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="$K3S_VERSION" \
+            INSTALL_K3S_EXEC="server --token=${K3S_TOKEN} --write-kubeconfig-mode 644" \
+            sh -
+    fi
 fi
 
 # Wait for K3s node readiness
@@ -149,6 +154,13 @@ until kubectl get nodes 2>/dev/null | grep -q "Ready"; do
     fi
 done
 echo "$LOG_PREFIX K3s cluster service is up."
+
+# Scale down stateful services in delta mode to avoid file locking during rsync/restic
+if [[ "$RESTORE_MODE" == "--delta" ]] && command -v kubectl &>/dev/null; then
+    echo "$LOG_PREFIX Scaling down stateful services in infra namespace to safely sync disk data..."
+    kubectl scale statefulset postgres mysql minio redis vault redpanda -n infra --replicas=0 2>/dev/null || true
+    sleep 3
+fi
 
 # 4. Restore Persistent Volumes via Restic from Backblaze B2
 if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PASSWORD:-}" ]]; then
@@ -173,6 +185,12 @@ if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PAS
     else
         echo "$LOG_PREFIX [WARN] No Restic PV snapshots found in $RESTIC_REPO. Proceeding."
     fi
+fi
+
+# Rescale stateful services in delta mode
+if [[ "$RESTORE_MODE" == "--delta" ]] && command -v kubectl &>/dev/null; then
+    echo "$LOG_PREFIX Rescaling stateful services in infra namespace to 1..."
+    kubectl scale statefulset postgres mysql minio redis vault redpanda -n infra --replicas=1 2>/dev/null || true
 fi
 
 # 5. Apply GitOps / Manifests if configured

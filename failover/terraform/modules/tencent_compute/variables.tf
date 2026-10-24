@@ -40,21 +40,21 @@ variable "image_id" {
 }
 
 variable "system_disk_type" {
-  description = "System disk type (CLOUD_PREMIUM, CLOUD_SSD, CLOUD_BSSD)"
+  description = "System disk type (CLOUD_HSSD, CLOUD_BSSD, CLOUD_PREMIUM)"
   type        = string
-  default     = "CLOUD_BSSD"
+  default     = "CLOUD_HSSD"
 }
 
 variable "system_disk_size" {
   description = "System disk size in GB"
   type        = number
-  default     = 100
+  default     = 150
 }
 
 variable "bandwidth" {
-  description = "Internet max bandwidth out in Mbps"
+  description = "Internet max bandwidth out in Mbps (Tencent max on traffic billing is 200)"
   type        = number
-  default     = 20
+  default     = 200
 }
 
 variable "user_data" {
