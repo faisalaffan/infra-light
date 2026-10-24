@@ -110,6 +110,7 @@ ENV ?= prod
 
 .PHONY: failover-status failover-switch-tencent failover-switch-homelab failover-switch \
         failover-start-tencent failover-stop-tencent \
+        failback-sync failback-quick drill-stop-homelab drill-start-homelab \
         failover-plan failover-apply failover-destroy failover-output failover-help
 
 # --- ⚡ DNS Master Pointer Switcher (Zero-Cost & Instant) ---
@@ -135,6 +136,23 @@ failover-stop-tencent:
 # --- 📱 DR Mobile Dashboard (Cloudflare Worker) ---
 failover-worker-deploy:
 	@bash ./failover/failover.sh worker-deploy
+
+# --- 🔄 Failback & Drill Simulation Helpers ---
+failback-sync:
+	@bash ./scripts/failback-homelab.sh
+
+failback-quick:
+	@bash ./scripts/failback-homelab.sh --quick
+
+drill-stop-homelab:
+	@echo "🧪 [DRILL] Mematikan K3s di Homelab untuk simulasi server mati..."
+	sudo systemctl stop k3s
+	@echo "✓ K3s Homelab dihentikan. Silakan buka https://dr.faisalaffan.com untuk beralih ke Cloud!"
+
+drill-start-homelab:
+	@echo "🧪 [DRILL] Menyalakan kembali K3s di Homelab..."
+	sudo systemctl start k3s
+	@echo "✓ K3s Homelab kembali menyala."
 
 # --- 🚀 Infrastructure Provisioning (Terraform) ---
 failover-plan:

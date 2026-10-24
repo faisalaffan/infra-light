@@ -46,12 +46,14 @@ err()  { echo -e "${LOG_TAG} \033[0;31m[ERROR]\033[0m $*" >&2; exit 1; }
 DRY_RUN=false
 INIT_ONLY=false
 LIST_ONLY=false
+FORCE_BACKUP="${FORCE_BACKUP:-false}"
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run)   DRY_RUN=true ;;
         --init-only) INIT_ONLY=true ;;
         --snapshots) LIST_ONLY=true ;;
+        --force)     FORCE_BACKUP=true ;;
         *)           ;;
     esac
 done
@@ -140,6 +142,43 @@ if [ "$LIST_ONLY" = true ]; then
     restic snapshots
     exit 0
 fi
+
+# ------------------------------------------------------------------------------
+# 4a. Active-Origin Split-Brain Guard
+# ------------------------------------------------------------------------------
+verify_active_origin_guard() {
+    if [ "$FORCE_BACKUP" = "true" ]; then
+        log "[GUARD] --force diaktifkan, melewati pengecekan routing origin."
+        return 0
+    fi
+
+    local local_role="HOMELAB"
+    if [[ -f "/etc/failover/env" ]]; then
+        local_role="TENCENT"
+    fi
+
+    local status_json=""
+    if command -v curl &>/dev/null; then
+        status_json=$(curl -sf -m 8 -H "X-Admin-Pin: ${ADMIN_PIN:-2026}" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)
+    elif command -v wget &>/dev/null; then
+        status_json=$(wget -qO- -T 8 --header="X-Admin-Pin: ${ADMIN_PIN:-2026}" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)
+    fi
+
+    if [[ -n "$status_json" ]]; then
+        if [[ "$local_role" == "HOMELAB" && "$status_json" == *'"currentOrigin":"TENCENT"'* ]]; then
+            warn "[GUARD] Routing Cloudflare saat ini sedang aktif di Server Cadangan (TENCENT)."
+            warn "[GUARD] Membatalkan auto-backup di Homelab agar data lama tidak menimpa snapshot B2 terbaru! (Gunakan --force jika ingin memaksa)."
+            exit 0
+        elif [[ "$local_role" == "TENCENT" && "$status_json" == *'"currentOrigin":"HOMELAB"'* ]]; then
+            warn "[GUARD] Routing Cloudflare saat ini sedang aktif di Server Utama (HOMELAB)."
+            warn "[GUARD] Membatalkan auto-backup di Cloud Standby agar tidak bentrok dengan Homelab! (Gunakan --force jika ingin memaksa)."
+            exit 0
+        fi
+        log "[GUARD] Terverifikasi server ini ($local_role) adalah server aktif. Melanjutkan backup..."
+    fi
+}
+
+verify_active_origin_guard
 
 init_repository
 
