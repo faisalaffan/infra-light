@@ -182,17 +182,30 @@ if [[ -n "${B2_BUCKET:-}" && -n "${B2_APPLICATION_KEY_ID:-}" && -n "${RESTIC_PAS
         
         if [[ -d "$TEMP_PV_RESTORE/storage" ]]; then
             echo "$LOG_PREFIX Syncing restored volumes from /storage to /var/lib/rancher/k3s/storage..."
-            cp -a "$TEMP_PV_RESTORE/storage/"* /var/lib/rancher/k3s/storage/ 2>/dev/null || rsync -a "$TEMP_PV_RESTORE/storage/" /var/lib/rancher/k3s/storage/
+            rsync -a "$TEMP_PV_RESTORE/storage/" /var/lib/rancher/k3s/storage/
         elif [[ -d "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage" ]]; then
             echo "$LOG_PREFIX Syncing restored volumes from /var/lib/rancher/k3s/storage..."
-            cp -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/"* /var/lib/rancher/k3s/storage/ 2>/dev/null || rsync -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/" /var/lib/rancher/k3s/storage/
+            rsync -a "$TEMP_PV_RESTORE/var/lib/rancher/k3s/storage/" /var/lib/rancher/k3s/storage/
         fi
         rm -rf "$TEMP_PV_RESTORE"
+
+        # Apply necessary permissions and application-specific fixes
+        echo "$LOG_PREFIX Applying volume permissions and specific directory ownerships..."
+        chmod -R 777 /var/lib/rancher/k3s/storage 2>/dev/null || true
+        chown -R 1001:1001 /var/lib/rancher/k3s/storage/*mongodb* 2>/dev/null || true
+        chown -R 65532:65532 /var/lib/rancher/k3s/storage/*minio* 2>/dev/null || true
+
+        # Clean empty parts in VictoriaMetrics
+        find /var/lib/rancher/k3s/storage/*victoriametrics* -mindepth 2 -type d -empty -delete 2>/dev/null || true
+
         echo "$LOG_PREFIX Persistent Volumes restored successfully from Backblaze B2 ✓"
     else
         echo "$LOG_PREFIX [WARN] No Restic PV snapshots found in $RESTIC_REPO. Proceeding."
     fi
 fi
+
+# Ensure inotify watch limits are high enough for container file watchers (e.g. Vite, Node)
+sysctl -w fs.inotify.max_user_instances=8192 fs.inotify.max_user_watches=1048576 2>/dev/null || true
 
 # Rescale stateful services in delta mode
 if [[ "$RESTORE_MODE" == "--delta" ]] && command -v kubectl &>/dev/null; then

@@ -51,15 +51,44 @@ if [[ -x "/usr/local/bin/restore.sh" ]]; then
     /usr/local/bin/restore.sh --delta >> /var/log/failover/restore.log 2>&1 || warn "Restore script reported warnings, checking data state..."
 fi
 
-# 4. Verify Health of Critical Database Services
+# 4. Verify Health of Critical Database Services & Unseal Vault
 log "Verifying readiness of core stateful services..."
-SERVICES=("postgres" "mysql" "minio")
+SERVICES=("postgres" "mysql" "minio" "mongodb" "redis")
 for svc in "${SERVICES[@]}"; do
     log "Checking health of $svc..."
     kubectl rollout status "statefulset/$svc" -n infra --timeout=120s 2>/dev/null || \
     kubectl rollout status "deployment/$svc" -n infra --timeout=120s 2>/dev/null || \
     warn "Service $svc is still stabilizing..."
 done
+
+# Ensure Vault is unsealed
+if kubectl get pod vault-0 -n infra &>/dev/null; then
+    log "Checking HashiCorp Vault seal status..."
+    if kubectl exec -n infra vault-0 -c vault -- vault status 2>&1 | grep -qi "Sealed.*true"; then
+        log "Vault is sealed. Attempting automatic unseal..."
+        SEAL_FILE="/etc/failover/SEALED_TOKEN_VAULT.md"
+        [[ ! -f "$SEAL_FILE" ]] && SEAL_FILE="/opt/devops-gitops/SEALED_TOKEN_VAULT.md"
+        if [[ -f "$SEAL_FILE" ]]; then
+            keys=$(grep "Unseal Key" "$SEAL_FILE" | awk '{print $NF}' | head -3)
+            for k in $keys; do
+                kubectl exec -n infra vault-0 -c vault -- vault operator unseal "$k" >/dev/null 2>&1 || true
+            done
+            log "Vault unseal keys submitted ✓"
+        elif [[ -n "${VAULT_UNSEAL_KEYS:-}" ]]; then
+            IFS=',' read -ra ADDR <<< "$VAULT_UNSEAL_KEYS"
+            for k in "${ADDR[@]}"; do
+                kubectl exec -n infra vault-0 -c vault -- vault operator unseal "$k" >/dev/null 2>&1 || true
+            done
+            log "Vault unseal keys submitted from env ✓"
+        else
+            warn "Vault is sealed but unseal keys were not found."
+        fi
+    fi
+fi
+
+# Ensure ResourceQuota in resolva allows all replicas
+kubectl patch resourcequota prod-quota -n resolva -p '{"spec":{"hard":{"limits.memory":"16Gi","requests.memory":"8Gi"}}}' 2>/dev/null || true
+
 
 # 5. Open Traffic Gate (Scale cloudflared to 1)
 # Ensure Standby Cloudflare Tunnel token and Nginx forwarded headers are enforced
