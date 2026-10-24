@@ -143,6 +143,9 @@ if [[ "$ACTION" == "worker-deploy" || "$ACTION" == "deploy-worker" ]]; then
     export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
     export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
 
+    echo "📦 Building Nuxt 3 Full-Stack Application..."
+    npm run build
+
     npx -y wrangler deploy
 
     # 🔐 Automatically sync secrets from root .env to Cloudflare Worker

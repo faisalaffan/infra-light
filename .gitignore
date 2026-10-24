@@ -49,3 +49,12 @@ crash.*.log
 # Cloudflare Wrangler
 .wrangler/
 **/.wrangler/
+
+# Node & Nuxt
+node_modules/
+**/node_modules/
+.nuxt/
+**/.nuxt/
+.output/
+**/.output/
+
