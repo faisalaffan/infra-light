@@ -85,6 +85,8 @@ token: "${K3S_TOKEN}"
 write-kubeconfig-mode: "0644"
 node-name: "it-helpdesk"
 node-ip: "${STANDBY_NODE_IP:-10.0.1.11}"
+tls-san:
+  - "${STANDBY_PUBLIC_IP:-43.172.172.189}"
 disable:
   - traefik
   - servicelb
