@@ -62,6 +62,15 @@ for svc in "${SERVICES[@]}"; do
 done
 
 # 5. Open Traffic Gate (Scale cloudflared to 1)
+# Ensure Standby Cloudflare Tunnel token and Nginx forwarded headers are enforced
+if [[ -f "/etc/failover/env" ]]; then
+    set -a; source /etc/failover/env; set +a
+fi
+if [[ -n "${CLOUDFLARE_STANDBY_TUNNEL_TOKEN:-}" ]]; then
+    kubectl create secret generic tunnel-token -n infra --from-literal=token="${CLOUDFLARE_STANDBY_TUNNEL_TOKEN}" --dry-run=client -o yaml | kubectl apply -f -
+fi
+kubectl patch configmap -n ingress-nginx ingress-nginx-controller -p '{"data":{"use-forwarded-headers":"true"}}' 2>/dev/null || true
+
 log "Stateful services verified. Opening Cloudflare Traffic Gate (scaling cloudflared to 1)..."
 kubectl scale deployment cloudflared -n infra --replicas=1
 kubectl rollout status deployment cloudflared -n infra --timeout=60s || warn "cloudflared rollout took longer than 60s"

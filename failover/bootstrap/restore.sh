@@ -83,6 +83,11 @@ if [[ -n "$B2_BUCKET" && -n "$B2_ENDPOINT" && -n "$AWS_ACCESS_KEY_ID" && -n "${R
             cat << EOF > /etc/rancher/k3s/config.yaml
 token: "${K3S_TOKEN}"
 write-kubeconfig-mode: "0644"
+node-name: "it-helpdesk"
+node-ip: "${STANDBY_NODE_IP:-10.0.1.11}"
+disable:
+  - traefik
+  - servicelb
 EOF
             # Remove stale TLS and credentials so K3s reconciles cleanly from restored datastore
             rm -rf /var/lib/rancher/k3s/server/tls /var/lib/rancher/k3s/server/cred
