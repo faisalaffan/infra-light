@@ -47,24 +47,29 @@ async function handleApiRoutes(request, env, url) {
     return jsonResponse({ error: "Unauthorized: Invalid PIN" }, 401);
   }
 
-  const CF_API_TOKEN = env.CLOUDFLARE_API_TOKEN;
   const CF_ZONE_ID = env.CLOUDFLARE_ZONE_ID;
   const MASTER_RECORD = env.CLOUDFLARE_MASTER_ORIGIN_RECORD || `origin.${env.FAILOVER_DOMAIN || "homelab.faisalaffan.com"}`;
   const HOMELAB_UUID = env.CLOUDFLARE_HOMELAB_TUNNEL_UUID;
   const TENCENT_UUID = env.CLOUDFLARE_TENCENT_TUNNEL_UUID;
 
+  const cfHeaders = { "Content-Type": "application/json" };
+  if (env.CLOUDFLARE_API_KEY && (env.CLOUDFLARE_EMAIL || env.GIT_EMAIL)) {
+    cfHeaders["X-Auth-Key"] = env.CLOUDFLARE_API_KEY;
+    cfHeaders["X-Auth-Email"] = env.CLOUDFLARE_EMAIL || env.GIT_EMAIL || "faisallionel@gmail.com";
+  } else if (env.CLOUDFLARE_API_TOKEN) {
+    cfHeaders["Authorization"] = `Bearer ${env.CLOUDFLARE_API_TOKEN}`;
+  }
+  const hasCFAuth = !!(cfHeaders["Authorization"] || cfHeaders["X-Auth-Key"]);
+
   // 1. GET /api/status - Query Cloudflare DNS & Current Origin
   if (url.pathname === "/api/status" && request.method === "GET") {
     try {
-      if (!CF_API_TOKEN || !CF_ZONE_ID) {
-        return jsonResponse({ error: "Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ZONE_ID in worker environment" }, 500);
+      if (!hasCFAuth || !CF_ZONE_ID) {
+        return jsonResponse({ error: "Missing Cloudflare credentials (CLOUDFLARE_API_KEY or CLOUDFLARE_API_TOKEN) or CLOUDFLARE_ZONE_ID" }, 500);
       }
 
       const cfResp = await fetch(`https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records?name=${MASTER_RECORD}&type=CNAME`, {
-        headers: {
-          "Authorization": `Bearer ${CF_API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        headers: cfHeaders,
       });
 
       const cfData = await cfResp.json();
@@ -121,7 +126,7 @@ async function handleApiRoutes(request, env, url) {
 
       // Check existing record
       const cfGet = await fetch(`https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records?name=${MASTER_RECORD}&type=CNAME`, {
-        headers: { "Authorization": `Bearer ${CF_API_TOKEN}`, "Content-Type": "application/json" },
+        headers: cfHeaders,
       });
       const getJson = await cfGet.json();
       const existing = getJson.result && getJson.result[0];
@@ -130,7 +135,7 @@ async function handleApiRoutes(request, env, url) {
       if (existing) {
         updateResp = await fetch(`https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records/${existing.id}`, {
           method: "PATCH",
-          headers: { "Authorization": `Bearer ${CF_API_TOKEN}`, "Content-Type": "application/json" },
+          headers: cfHeaders,
           body: JSON.stringify({
             type: "CNAME",
             name: MASTER_RECORD,
@@ -142,7 +147,7 @@ async function handleApiRoutes(request, env, url) {
       } else {
         updateResp = await fetch(`https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records`, {
           method: "POST",
-          headers: { "Authorization": `Bearer ${CF_API_TOKEN}`, "Content-Type": "application/json" },
+          headers: cfHeaders,
           body: JSON.stringify({
             type: "CNAME",
             name: MASTER_RECORD,

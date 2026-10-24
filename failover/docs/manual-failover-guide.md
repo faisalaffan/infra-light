@@ -60,7 +60,7 @@ make failover-stop-tencent      # Stop CVM ($0 compute cost)
    ```bash
    cd failover/cloudflare-worker
    npx wrangler deploy
-   npx wrangler secret put CLOUDFLARE_API_TOKEN
+   npx wrangler secret put CLOUDFLARE_API_KEY # (atau CLOUDFLARE_API_TOKEN)
    npx wrangler secret put GITHUB_PAT
    ```
 2. Buka URL worker di browser HP Anda (misal `https://dr-failover-controller.<subdomain>.workers.dev`).

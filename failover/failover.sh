@@ -30,6 +30,8 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export TF_VAR_b2_bucket="${B2_BUCKET:-${TF_VAR_b2_bucket:-}}"
     export TF_VAR_b2_endpoint="${B2_ENDPOINT:-${TF_VAR_b2_endpoint:-}}"
     export TF_VAR_restic_password="${RESTIC_PASSWORD:-${TF_VAR_restic_password:-}}"
+    export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
+    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
     export TF_VAR_cloudflare_api_token="${CLOUDFLARE_API_TOKEN:-${TF_VAR_cloudflare_api_token:-}}"
     export TF_VAR_cloudflare_zone_id="${CLOUDFLARE_ZONE_ID:-${TF_VAR_cloudflare_zone_id:-}}"
     export TF_VAR_cloudflare_account_id="${CLOUDFLARE_ACCOUNT_ID:-${TF_VAR_cloudflare_account_id:-}}"
