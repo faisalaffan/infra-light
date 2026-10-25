@@ -83,7 +83,7 @@ rp-help:
 # ============================================================
 VAULT_POD := vault-0
 
-.PHONY: vault-status vault-init vault-unseal vault-login vault-help
+.PHONY: vault-status vault-init vault-unseal vault-login vault-pull-envs vault-help
 
 vault-status:
 	@$(KUBECTL) exec -n $(NAMESPACE) $(VAULT_POD) -c vault -- vault status || true
@@ -95,12 +95,16 @@ vault-unseal:
 	@[ -n "$(KEY)" ] || { echo "ERROR: set KEY=unseal_key (e.g. make vault-unseal KEY=xxxx)"; exit 1; }
 	$(KUBECTL) exec -n $(NAMESPACE) $(VAULT_POD) -c vault -- vault operator unseal "$(KEY)"
 
+vault-pull-envs:
+	@python3 scripts/pull-vault-envs.py
+
 vault-help:
 	@echo "HashiCorp Vault Management (k3s infra/vault-0)"
 	@echo ""
 	@echo "  make vault-status                  Check Vault status (initialized/sealed)"
 	@echo "  make vault-init                    Initialize Vault (generates unseal keys + root token)"
 	@echo "  make vault-unseal KEY=<key>        Unseal Vault using unseal key"
+	@echo "  make vault-pull-envs               Pull all secrets from Vault and export to .env files"
 
 # ============================================================
 # Cold-Standby Disaster Recovery (Failover to Tencent Cloud / Vultr / AWS)
