@@ -42,8 +42,94 @@ data:
 
     // ── Logs → Loki ──────────────────────────────────────────
     otelcol.exporter.loki "default" {
-      forward_to = [loki.write.default.receiver]
+      forward_to = [loki.process.otlp_logs.receiver]
     }
+
+    loki.process "otlp_logs" {
+      forward_to = [loki.write.default.receiver]
+
+      stage.json {
+        expressions = {
+          user_agent          = "attributes.\"user_agent.original\" || attributes.\"http.user_agent\"",
+          severity            = "severity_text || severity",
+          environment         = "resources.\"deployment.environment.name\" || attributes.\"deployment.environment\" || resources.\"deployment.environment\"",
+          service_namespace   = "resources.\"service.namespace\"",
+          cloud_region        = "resources.\"cloud.region\"",
+          k8s_cluster_name    = "resources.\"k8s.cluster.name\"",
+          k8s_namespace_name  = "resources.\"k8s.namespace.name\"",
+          k8s_deployment_name = "resources.\"k8s.deployment.name\"",
+          trace_id            = "trace_id || attributes.trace_id || attributes.traceID",
+          span_id             = "span_id || attributes.span_id || attributes.spanID",
+          request_id          = "attributes.\"app.request_id\" || attributes.\"http.request_id\"",
+          correlation_id      = "attributes.\"app.correlation_id\"",
+          causation_id        = "attributes.\"app.causation_id\"",
+          business_ref        = "attributes.\"app.business_ref\"",
+          idempotency_key     = "attributes.\"app.idempotency_key\"",
+          status_code         = "attributes.\"http.response.status_code\" || attributes.\"http.status_code\"",
+          route               = "attributes.\"http.route\"",
+          method              = "attributes.\"http.request.method\" || attributes.\"http.method\"",
+          event_name          = "event_name",
+          outcome             = "attributes.\"app.outcome\"",
+          duration_ms         = "attributes.\"app.duration_ms\"",
+          tenant_id           = "attributes.\"app.tenant_id\"",
+          channel             = "attributes.\"app.channel\"",
+          k8s_pod_name        = "resources.\"k8s.pod.name\"",
+          service_version     = "resources.\"service.version\"",
+          container_image_tag = "resources.\"container.image.tag\"",
+          db_system           = "attributes.\"db.system.name\"",
+          error_type          = "attributes.\"error.type\"",
+          exception_type      = "attributes.\"exception.type\"",
+          exception_message   = "attributes.\"exception.message\"",
+          error_code          = "attributes.\"app.error_code\"",
+        }
+      }
+
+      // Drop synthetic health checks from kube-probe
+      stage.drop {
+        source     = "user_agent"
+        expression = "^kube-probe.*"
+      }
+
+      stage.labels {
+        values = {
+          service_namespace           = "service_namespace",
+          deployment_environment_name = "environment",
+          cloud_region                = "cloud_region",
+          k8s_cluster_name            = "k8s_cluster_name",
+          k8s_namespace_name          = "k8s_namespace_name",
+          k8s_deployment_name         = "k8s_deployment_name",
+        }
+      }
+
+      stage.structured_metadata {
+        values = {
+          trace_id          = "trace_id",
+          span_id           = "span_id",
+          request_id        = "request_id",
+          correlation_id    = "correlation_id",
+          causation_id      = "causation_id",
+          business_ref      = "business_ref",
+          idempotency_key   = "idempotency_key",
+          status_code       = "status_code",
+          route             = "route",
+          method            = "method",
+          event_name        = "event_name",
+          outcome           = "outcome",
+          duration_ms       = "duration_ms",
+          tenant_id         = "tenant_id",
+          channel           = "channel",
+          pod_name          = "k8s_pod_name",
+          service_version   = "service_version",
+          image_tag         = "container_image_tag",
+          db_system         = "db_system",
+          error_type        = "error_type",
+          exception_type    = "exception_type",
+          exception_message = "exception_message",
+          error_code        = "error_code",
+        }
+      }
+    }
+
     loki.write "default" {
       endpoint {
         url = "http://loki.infra.svc:3100/loki/api/v1/push"

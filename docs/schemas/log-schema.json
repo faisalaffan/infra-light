@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://faisalaffan.com/schemas/telemetry/log-master-schema.json",
+  "title": "Master Telemetry Log Schema (OTel Superset)",
+  "description": "Master schema for application logs ingested via OpenTelemetry into Loki and Tempo.",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "severity_text",
+    "severity_number",
+    "body",
+    "resource",
+    "attributes"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observed_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "severity_text": {
+      "type": "string",
+      "enum": ["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"]
+    },
+    "severity_number": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 24
+    },
+    "event_name": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{16}$"
+    },
+    "trace_flags": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "object",
+      "required": [
+        "service.name",
+        "deployment.environment.name"
+      ],
+      "properties": {
+        "service.name": { "type": "string" },
+        "service.namespace": { "type": "string" },
+        "service.version": { "type": "string" },
+        "service.instance.id": { "type": "string" },
+        "deployment.environment.name": { "type": "string", "enum": ["prod", "staging", "dev", "local"] },
+        "cloud.provider": { "type": "string" },
+        "cloud.platform": { "type": "string" },
+        "cloud.account.id": { "type": "string" },
+        "cloud.region": { "type": "string" },
+        "cloud.availability_zone": { "type": "string" },
+        "k8s.cluster.name": { "type": "string" },
+        "k8s.namespace.name": { "type": "string" },
+        "k8s.deployment.name": { "type": "string" },
+        "k8s.pod.name": { "type": "string" },
+        "k8s.pod.uid": { "type": "string" },
+        "k8s.node.name": { "type": "string" },
+        "container.id": { "type": "string" },
+        "container.image.name": { "type": "string" },
+        "container.image.tag": { "type": "string" },
+        "host.name": { "type": "string" },
+        "host.arch": { "type": "string" },
+        "process.runtime.name": { "type": "string" },
+        "process.runtime.version": { "type": "string" },
+        "vcs.ref.head.revision": { "type": "string" },
+        "app.build.id": { "type": "string" },
+        "telemetry.sdk.name": { "type": "string" },
+        "telemetry.sdk.language": { "type": "string" },
+        "telemetry.sdk.version": { "type": "string" }
+      }
+    },
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "app.request_id": { "type": "string" },
+        "app.correlation_id": { "type": "string" },
+        "app.causation_id": { "type": "string" },
+        "app.business_ref": { "type": "string" },
+        "app.tenant_id": { "type": "string" },
+        "app.channel": { "type": "string" },
+        "app.user.id_hash": { "type": "string" },
+        "app.idempotency_key": { "type": "string" },
+        "app.retry_attempt": { "type": "integer" },
+        "app.duration_ms": { "type": "number" },
+        "app.outcome": { "type": "string", "enum": ["success", "failure", "pending"] },
+        "app.feature_flags": { "type": "string" },
+        "app.trace_origin": { "type": "string" },
+
+        "http.request.method": { "type": "string" },
+        "http.route": { "type": "string" },
+        "url.path": { "type": "string" },
+        "url.scheme": { "type": "string" },
+        "http.response.status_code": { "type": "integer" },
+        "http.request.body.size": { "type": "integer" },
+        "http.response.body.size": { "type": "integer" },
+        "network.protocol.name": { "type": "string" },
+        "network.protocol.version": { "type": "string" },
+        "client.address": { "type": "string" },
+        "user_agent.original": { "type": "string" },
+        "server.address": { "type": "string" },
+        "server.port": { "type": "integer" },
+
+        "rpc.system": { "type": "string" },
+        "rpc.service": { "type": "string" },
+        "rpc.method": { "type": "string" },
+        "rpc.grpc.status_code": { "type": "integer" },
+
+        "messaging.system": { "type": "string" },
+        "messaging.operation.type": { "type": "string" },
+        "messaging.operation.name": { "type": "string" },
+        "messaging.destination.name": { "type": "string" },
+        "messaging.destination.partition.id": { "type": "string" },
+        "messaging.kafka.offset": { "type": "integer" },
+        "messaging.kafka.message.key": { "type": "string" },
+        "messaging.consumer.group.name": { "type": "string" },
+        "messaging.message.id": { "type": "string" },
+        "messaging.message.body.size": { "type": "integer" },
+        "app.consumer.lag_ms": { "type": "integer" },
+        "app.delivery_attempt": { "type": "integer" },
+        "app.dlq": { "type": "boolean" },
+
+        "app.saga.id": { "type": "string" },
+        "app.saga.type": { "type": "string" },
+        "app.saga.step": { "type": "string" },
+        "app.saga.step_index": { "type": "integer" },
+        "app.saga.step_status": { "type": "string" },
+        "app.saga.compensating": { "type": "boolean" },
+
+        "app.job.name": { "type": "string" },
+        "app.job.id": { "type": "string" },
+        "app.job.run_id": { "type": "string" },
+        "app.job.trigger": { "type": "string" },
+        "app.job.records_processed": { "type": "integer" },
+        "app.job.records_failed": { "type": "integer" },
+
+        "db.system.name": { "type": "string" },
+        "db.namespace": { "type": "string" },
+        "db.operation.name": { "type": "string" },
+        "db.collection.name": { "type": "string" },
+        "db.query.text": { "type": "string" },
+        "db.response.returned_rows": { "type": "integer" },
+        "db.response.status_code": { "type": "string" },
+        "app.db.pool_wait_ms": { "type": "number" },
+        "app.db.query_ms": { "type": "number" },
+
+        "error.type": { "type": "string" },
+        "exception.type": { "type": "string" },
+        "exception.message": { "type": "string" },
+        "exception.stacktrace": { "type": "string" },
+        "app.error_code": { "type": "string" },
+        "app.error.category": { "type": "string" },
+        "app.retryable": { "type": "boolean" }
+      },
+      "dependentRequired": {
+        "http.route": ["http.request.method", "http.response.status_code"],
+        "messaging.system": ["messaging.destination.name", "messaging.operation.type"],
+        "db.system.name": ["db.operation.name"],
+        "error.type": ["exception.message"]
+      }
+    },
+    "instrumentation_scope": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "schema_url": {
+      "type": "string"
+    }
+  }
+}

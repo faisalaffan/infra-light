@@ -39,6 +39,44 @@ data:
           index:
             prefix: index_
             period: 24h
+    limits_config:
+      allow_structured_metadata: true
+      max_label_names_per_series: 15
+      otlp_config:
+        resource_attributes:
+          ignore_defaults: true
+          attributes_config:
+            - action: index_label
+              attributes:
+                - service.name
+                - service.namespace
+                - deployment.environment.name
+                - cloud.region
+                - k8s.cluster.name
+                - k8s.namespace.name
+                - k8s.deployment.name
+            - action: structured_metadata
+              attributes:
+                - k8s.pod.name
+                - k8s.pod.uid
+                - k8s.node.name
+                - service.instance.id
+                - service.version
+                - container.id
+                - container.image.tag
+                - vcs.ref.head.revision
+                - app.build.id
+                - cloud.availability_zone
+            - action: drop
+              attributes:
+                - host.name
+                - telemetry.sdk.name
+                - telemetry.sdk.language
+                - telemetry.sdk.version
+        log_attributes:
+          - action: drop
+            attributes:
+              - app.legacy.rrn_trace_map
 ---
 apiVersion: v1
 kind: Service
