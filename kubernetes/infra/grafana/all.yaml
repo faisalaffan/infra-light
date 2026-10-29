@@ -100,6 +100,32 @@ data:
         uid: pyroscope
         url: http://pyroscope.infra.svc:4040
         access: proxy
+
+      - name: PostgreSQL
+        type: postgres
+        uid: postgresql
+        url: postgres.infra.svc:5432
+        user: postgres
+        secureJsonData:
+          password: ${PG_SUPERUSER_PASSWORD}
+        jsonData:
+          database: postgres
+          sslmode: disable
+          maxOpenConns: 5
+          maxIdleConns: 2
+          connMaxLifetime: 14400
+          postgresVersion: 1700
+
+      - name: Redis
+        type: redis-datasource
+        uid: redis
+        url: redis.infra.svc:6379
+        jsonData:
+          client: standalone
+          poolSize: 5
+          timeout: 10
+          pingInterval: 0
+          pipelineWindow: 0
 ---
 apiVersion: v1
 kind: Service
@@ -134,6 +160,9 @@ spec:
           image: grafana/grafana:latest
           ports:
             - containerPort: 3000
+          env:
+            - name: GF_INSTALL_PLUGINS
+              value: "redis-datasource"
           envFrom:
             - secretRef:
                 name: infra-secrets
