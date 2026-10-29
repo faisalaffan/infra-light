@@ -7,7 +7,7 @@ NAMESPACE := infra
 POD := postgres-0
 PG_USER := postgres
 
-.PHONY: db-create db-list db-drop db-help
+.PHONY: db-create db-list db-drop db-help zitadel-db-init
 
 # --- PostgreSQL: create database ---------------------------------
 # Usage: make db-create DB=icex
@@ -38,6 +38,14 @@ db-help:
 	@echo "  make db-create DB=<name>    Create a new database"
 	@echo "  make db-list                List all databases"
 	@echo "  make db-drop  DB=<name>     Drop a database (with confirmation)"
+	@echo "  make zitadel-db-init        Create zitadel database"
+
+# --- ZITADEL: initialize database --------------------------------
+zitadel-db-init:
+	@echo "Creating database 'zitadel' in PostgreSQL..."
+	@$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -tc "SELECT 1 FROM pg_database WHERE datname = 'zitadel'" | grep -q 1 || \
+		$(KUBECTL) exec -n $(NAMESPACE) $(POD) -- psql -U $(PG_USER) -c "CREATE DATABASE \"zitadel\" TEMPLATE template0;"
+	@echo "✓ Database 'zitadel' is ready"
 
 # ============================================================
 # Redpanda (Kafka-compatible) Management via rpk
@@ -232,48 +240,30 @@ qdrant-help:
 	@echo "  make qdrant-collections    List all collections in Qdrant"
 
 # ============================================================
-# Langfuse & ClickHouse Management
+# Arize Phoenix (LLM Observability, Evals & Tracing) Management
 # ============================================================
-.PHONY: langfuse-status langfuse-health langfuse-backup langfuse-flush-traces langfuse-logs langfuse-help
+.PHONY: phoenix-status phoenix-health phoenix-logs phoenix-help
 
-langfuse-status:
-	@echo "--- Langfuse Pods ---"
-	@$(KUBECTL) get pods -n $(NAMESPACE) -l 'app in (langfuse-web, langfuse-worker, clickhouse)'
+phoenix-status:
+	@echo "--- Phoenix Pods & Services ---"
+	@$(KUBECTL) get pods,svc,pvc -n $(NAMESPACE) -l app=phoenix
+
+phoenix-health:
+	@echo "Checking Arize Phoenix health..."
+	@IP=$$($(KUBECTL) get svc phoenix -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	echo -n "Healthz: "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$IP:6006/healthz" || true; \
+	echo -n "Readyz: "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$IP:6006/readyz" || true
+
+phoenix-logs:
+	@echo "--- Arize Phoenix Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=phoenix --tail=50 -f
+
+phoenix-help:
+	@echo "Arize Phoenix LLM Observability Management (k3s infra)"
 	@echo ""
-	@echo "--- Langfuse CronJobs ---"
-	@$(KUBECTL) get cronjobs -n $(NAMESPACE) | grep -E "langfuse" || true
-
-langfuse-health:
-	@echo "Checking Langfuse Web health..."
-	@IP=$$($(KUBECTL) get svc langfuse-web -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
-	curl -s "http://$$IP:3000/api/public/health" || true; echo ""
-	@echo "Checking ClickHouse ping..."
-	@CH_IP=$$($(KUBECTL) get svc clickhouse -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
-	curl -s "http://$$CH_IP:8123/ping" || true; echo ""
-
-langfuse-backup:
-	@echo "Triggering manual Langfuse backup job..."
-	$(KUBECTL) create job --from=cronjob/langfuse-backup langfuse-backup-manual-$$(date +%s) -n $(NAMESPACE)
-
-langfuse-flush-traces:
-	@echo "Triggering manual Langfuse 7-day trace retention flush job..."
-	$(KUBECTL) create job --from=cronjob/langfuse-trace-flush langfuse-trace-flush-manual-$$(date +%s) -n $(NAMESPACE)
-
-langfuse-logs:
-	@echo "--- Langfuse Web Logs ---"
-	@$(KUBECTL) logs -n $(NAMESPACE) -l app=langfuse-web --tail=50 || true
-	@echo ""
-	@echo "--- Langfuse Worker Logs ---"
-	@$(KUBECTL) logs -n $(NAMESPACE) -l app=langfuse-worker --tail=50 || true
-
-langfuse-help:
-	@echo "Langfuse LLM Observability Management (k3s infra)"
-	@echo ""
-	@echo "  make langfuse-status        Show status of Langfuse pods & cronjobs"
-	@echo "  make langfuse-health        Check health endpoints of Web and ClickHouse"
-	@echo "  make langfuse-backup        Trigger manual daily backup job"
-	@echo "  make langfuse-flush-traces  Trigger manual 7-day trace retention flush"
-	@echo "  make langfuse-logs          Show recent logs from Web and Worker"
+	@echo "  make phoenix-status        Show status of Phoenix pods, service & PVC"
+	@echo "  make phoenix-health        Check health & ready endpoints of Phoenix"
+	@echo "  make phoenix-logs          Follow live logs from Arize Phoenix"
 
 # ============================================================
 # Backblaze B2 & Restic Disaster Recovery Management

@@ -43,6 +43,11 @@ data:
               url: '$${__value.raw}'
               urlDisplayLabel: 'View Trace in Tempo'
               datasourceUid: tempo
+            # Structured Metadata / Label: trace_id -> Arize Phoenix LLM Tracing
+            - name: PhoenixTrace
+              label: trace_id
+              url: 'https://${PHOENIX_HOSTNAME}/projects/default/traces?trace_id=$${__value.raw}'
+              urlDisplayLabel: 'View in Arize Phoenix'
             # Fallback: extract trace_id from log body text
             - name: traceID_body
               matcherRegex: '(?:trace_id|traceId|traceID|traceid)["\s:=]+["\s]*(\w{32,})'

@@ -1,0 +1,97 @@
+# =========================================================================
+# ZITADEL — Cloud-native Identity & Access Management (OIDC, OAuth2, Passkeys)
+# Web UI / Console / API: port 8080 (gRPC/HTTP2) + Login UI: port 3000 (HTTP)
+# External Access via Ingress (https://${ZITADEL_HOSTNAME})
+# =========================================================================
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: zitadel
+  namespace: infra
+spec:
+  chart: zitadel
+  repo: https://charts.zitadel.com
+  version: ${ZITADEL_CHART_VERSION}
+  targetNamespace: infra
+  valuesContent: |-
+    zitadel:
+      masterkey: "${ZITADEL_MASTERKEY}"
+      configmapConfig:
+        ExternalDomain: "${ZITADEL_HOSTNAME}"
+        ExternalPort: 443
+        ExternalSecure: true
+        TLS:
+          Enabled: false
+        FirstInstance:
+          Org:
+            Name: "${ZITADEL_ORG_NAME}"
+            Human:
+              UserName: "${ZITADEL_ADMIN_USERNAME}"
+              FirstName: "Zitadel"
+              LastName: "Admin"
+              Email:
+                Address: "${ZITADEL_ADMIN_EMAIL}"
+                Verified: true
+              Password: "${ZITADEL_ADMIN_PASSWORD}"
+
+    env:
+      - name: ZITADEL_DATABASE_POSTGRES_DSN
+        value: "postgresql://${PG_SUPERUSER}:${PG_SUPERUSER_PASSWORD}@postgres.infra.svc.cluster.local:5432/zitadel?sslmode=disable"
+
+    postgresql:
+      enabled: false
+
+    replicaCount: 1
+
+    resources:
+      requests:
+        cpu: "${ZITADEL_CPU_REQUEST}"
+        memory: "${ZITADEL_MEMORY_REQUEST}"
+      limits:
+        cpu: "${ZITADEL_CPU_LIMIT}"
+        memory: "${ZITADEL_MEMORY_LIMIT}"
+
+    login:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      ingress:
+        enabled: true
+        controller: nginx
+        className: "nginx"
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        hosts:
+          - host: "${ZITADEL_HOSTNAME}"
+            paths:
+              - path: /ui/v2/login
+                pathType: Prefix
+        tls:
+          - hosts:
+              - "${ZITADEL_HOSTNAME}"
+            secretName: zitadel-tls
+
+    ingress:
+      enabled: true
+      controller: nginx
+      className: "nginx"
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+        nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      hosts:
+        - host: "${ZITADEL_HOSTNAME}"
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - hosts:
+            - "${ZITADEL_HOSTNAME}"
+          secretName: zitadel-tls
+

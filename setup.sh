@@ -350,20 +350,13 @@ deploy_kustomize() {
     export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
     export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
-    export LANGFUSE_HOSTNAME="${LANGFUSE_HOSTNAME:-langfuse.${DOMAIN:-faisalaffan.com}}"
-    export LANGFUSE_RETENTION_DAYS="${LANGFUSE_RETENTION_DAYS:-\"7\"}"
-    export LANGFUSE_BACKUP_RETENTION_DAYS="${LANGFUSE_BACKUP_RETENTION_DAYS:-\"7\"}"
-    export LANGFUSE_BACKUP_SCHEDULE="${LANGFUSE_BACKUP_SCHEDULE:-0 2 * * *}"
-    export LANGFUSE_FLUSH_SCHEDULE="${LANGFUSE_FLUSH_SCHEDULE:-15 3 * * *}"
-    export LANGFUSE_BACKUP_DATA_SIZE="${LANGFUSE_BACKUP_DATA_SIZE:-20Gi}"
-    export CLICKHOUSE_VERSION="${CLICKHOUSE_VERSION:-24.8-alpine}"
-    export CLICKHOUSE_PASSWORD="${CLICKHOUSE_PASSWORD:-clickhouse_secret_2026}"
-    export CLICKHOUSE_DATA_SIZE="${CLICKHOUSE_DATA_SIZE:-20Gi}"
-    export CLICKHOUSE_MEMORY_REQUEST="${CLICKHOUSE_MEMORY_REQUEST:-512Mi}"
-    export CLICKHOUSE_MEMORY_LIMIT="${CLICKHOUSE_MEMORY_LIMIT:-2Gi}"
-    export CLICKHOUSE_CPU_REQUEST="${CLICKHOUSE_CPU_REQUEST:-200m}"
-    export CLICKHOUSE_CPU_LIMIT="${CLICKHOUSE_CPU_LIMIT:-2}"
-    export LANGFUSE_VERSION="${LANGFUSE_VERSION:-3}"
+    export PHOENIX_HOSTNAME="${PHOENIX_HOSTNAME:-phoenix.${DOMAIN:-faisalaffan.com}}"
+    export PHOENIX_VERSION="${PHOENIX_VERSION:-latest}"
+    export PHOENIX_DATA_SIZE="${PHOENIX_DATA_SIZE:-10Gi}"
+    export PHOENIX_MEMORY_REQUEST="${PHOENIX_MEMORY_REQUEST:-512Mi}"
+    export PHOENIX_MEMORY_LIMIT="${PHOENIX_MEMORY_LIMIT:-2Gi}"
+    export PHOENIX_CPU_REQUEST="${PHOENIX_CPU_REQUEST:-250m}"
+    export PHOENIX_CPU_LIMIT="${PHOENIX_CPU_LIMIT:-2}"
     export MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
     export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
     export B2_ENDPOINT="${B2_ENDPOINT:-https://s3.us-west-004.backblazeb2.com}"
@@ -566,6 +559,12 @@ deploy_all() {
 
     # 4. First-party: all infra services via Kustomize
     deploy_kustomize
+
+    # Ensure required databases exist in PostgreSQL
+    if kubectl get pod -n infra postgres-0 &>/dev/null; then
+        kubectl exec -n infra postgres-0 -- psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'zitadel'" 2>/dev/null | grep -q 1 || \
+            kubectl exec -n infra postgres-0 -- psql -U postgres -c "CREATE DATABASE \"zitadel\" TEMPLATE template0;" 2>/dev/null || true
+    fi
 
     # 4.1 Environments: Dev & Prod partitions, quotas, limitranges, RBAC, ingress
     deploy_environments
@@ -892,7 +891,8 @@ print_summary() {
     echo "    Loki / Tempo:    loki.infra:3100 / tempo.infra:3200"
     echo "    HashiCorp Vault: vault.infra:8200"
     echo "    Qdrant Vector DB: qdrant.infra:6333 (HTTP/UI) / :6334 (gRPC)"
-    echo "    Langfuse LLM:    langfuse-web.infra:3000 / clickhouse:8123"
+    echo "    Arize Phoenix:   phoenix.infra:6006 (UI/HTTP) / :4317 (gRPC)"
+    echo "    ZITADEL IAM:     ${ZITADEL_HOSTNAME:-zitadel.faisalaffan.com} / zitadel.infra:8080"
     echo "    Resolva Backend: reconciliation-backend-svc.resolva:3020"
     echo "    Resolva AI:      reconciliation-ai-svc.resolva:3000"
     echo "    E-Wallet API:    ewallet-api.ewallet:3000"

@@ -39,7 +39,7 @@ spec:
         - ${VAULT_UI_HOSTNAME}
         - ${REGISTRY_UI_HOSTNAME}
         - ${QDRANT_UI_HOSTNAME}
-        - ${LANGFUSE_HOSTNAME}
+        - ${PHOENIX_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -192,15 +192,15 @@ spec:
                 name: qdrant
                 port:
                   number: 6333
-    - host: ${LANGFUSE_HOSTNAME}
+    - host: ${PHOENIX_HOSTNAME}
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: langfuse-web
+                name: phoenix
                 port:
-                  number: 3000
+                  number: 6006
 
 

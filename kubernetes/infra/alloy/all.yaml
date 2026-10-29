@@ -27,7 +27,12 @@ data:
       output { logs = [otelcol.exporter.loki.default.input] }
     }
     otelcol.processor.batch "traces" {
-      output { traces = [otelcol.exporter.otlp.tempo.input] }
+      output {
+        traces = [
+          otelcol.exporter.otlp.tempo.input,
+          otelcol.exporter.otlp.phoenix.input,
+        ]
+      }
     }
 
     // ── Metrics → VictoriaMetrics ────────────────────────────
@@ -136,10 +141,17 @@ data:
       }
     }
 
-    // ── Traces → Tempo ───────────────────────────────────────
+    // ── Traces → Tempo & Phoenix ──────────────────────────────
     otelcol.exporter.otlp "tempo" {
       client {
         endpoint = "tempo.infra.svc:4317"
+        tls { insecure = true }
+      }
+    }
+
+    otelcol.exporter.otlp "phoenix" {
+      client {
+        endpoint = "phoenix.infra.svc:4317"
         tls { insecure = true }
       }
     }
@@ -149,6 +161,7 @@ data:
       targets = [
         {"__address__" = "victoriametrics.infra.svc:8428", "job" = "victoriametrics"},
         {"__address__" = "grafana.infra.svc:3000", "job" = "grafana"},
+        {"__address__" = "phoenix.infra.svc:9090", "job" = "phoenix"},
       ]
       forward_to = [prometheus.remote_write.default.receiver]
       scrape_interval = "15s"

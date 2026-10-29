@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phoenix
+  namespace: infra
+  labels:
+    app: phoenix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: phoenix
+  template:
+    metadata:
+      labels:
+        app: phoenix
+    spec:
+      containers:
+        - name: phoenix
+          image: arizephoenix/phoenix:${PHOENIX_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 6006
+              protocol: TCP
+            - name: grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: PHOENIX_ENABLE_PROMETHEUS
+              value: "true"
+            - name: PHOENIX_PORT
+              value: "6006"
+            - name: PHOENIX_GRPC_PORT
+              value: "4317"
+            - name: PHOENIX_HOST
+              value: "0.0.0.0"
+            - name: PHOENIX_WORKING_DIR
+              value: "/data"
+            - name: PHOENIX_ENABLE_AUTH
+              value: "true"
+            - name: PHOENIX_USE_SECURE_COOKIES
+              value: "true"
+            - name: PHOENIX_CSRF_TRUSTED_ORIGINS
+              value: "https://${PHOENIX_HOSTNAME}"
+            - name: PHOENIX_ADMINS
+              value: "${PHOENIX_ADMINS}"
+            - name: PHOENIX_SQL_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: phoenix-secrets
+                  key: PHOENIX_SQL_DATABASE_URL
+            - name: PHOENIX_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: phoenix-secrets
+                  key: PHOENIX_SECRET
+            - name: PHOENIX_ADMIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: phoenix-secrets
+                  key: PHOENIX_ADMIN_SECRET
+            - name: PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: phoenix-secrets
+                  key: PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 6006
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6006
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "${PHOENIX_MEMORY_REQUEST}"
+              cpu: "${PHOENIX_CPU_REQUEST}"
+            limits:
+              memory: "${PHOENIX_MEMORY_LIMIT}"
+              cpu: "${PHOENIX_CPU_LIMIT}"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: phoenix-data

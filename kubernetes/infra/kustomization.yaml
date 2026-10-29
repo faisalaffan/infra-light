@@ -21,7 +21,7 @@ resources:
   - woodpecker
   - docker-registry
   - qdrant
-  - langfuse
+  - phoenix
   - ingress
   - networkpolicy
   - azure-sql-edge
