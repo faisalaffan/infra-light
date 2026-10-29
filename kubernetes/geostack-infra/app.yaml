@@ -26,7 +26,7 @@ metadata:
   labels:
     app: api
 spec:
-  replicas: 2
+  replicas: 0
   selector:
     matchLabels:
       app: api
@@ -147,7 +147,7 @@ metadata:
   labels:
     app: web
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: web

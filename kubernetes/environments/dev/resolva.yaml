@@ -35,7 +35,7 @@ metadata:
   labels:
     app: reconciliation-backend
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: reconciliation-backend
@@ -102,7 +102,7 @@ metadata:
   labels:
     app: reconciliation-frontend
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: reconciliation-frontend
@@ -172,7 +172,7 @@ metadata:
   labels:
     app: reconciliation-ai
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: reconciliation-ai
