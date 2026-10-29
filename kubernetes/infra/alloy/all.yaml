@@ -222,7 +222,7 @@ data:
     prometheus.exporter.mongodb "mongodb" {
       mongodb_uri     = "mongodb://root:" + sys.env("MONGODB_ROOT_PASSWORD") + "@mongodb.infra.svc.cluster.local:27017/admin"
       direct_connect  = true
-      collect_all     = false
+      collect_all     = true
       compatible_mode = false
       enable_db_stats = true
     }
