@@ -23,23 +23,45 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
-      "title": "🖥️ Host Baremetal & Hardware Server Health",
+      "title": "\ud83d\udda5\ufe0f Host Baremetal & Hardware Server Health",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 15 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 15
+          },
           "unit": "percent"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
       "id": 101,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100)",
@@ -47,12 +69,12 @@
           "refId": "A"
         },
         {
-          "expr": "node_load1",
+          "expr": "max(node_load1)",
           "legendFormat": "Load 1m",
           "refId": "B"
         },
         {
-          "expr": "node_load5",
+          "expr": "max(node_load5)",
           "legendFormat": "Load 5m",
           "refId": "C"
         }
@@ -61,43 +83,67 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Total Host RAM vs Used vs Available",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 24000000000 },
-              { "color": "red", "value": 30000000000 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 24000000000
+              },
+              {
+                "color": "red",
+                "value": 30000000000
+              }
             ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
       "id": 102,
       "options": {
         "displayMode": "lcd",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "showUnfilled": true
       },
       "targets": [
         {
-          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "expr": "max(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)",
           "legendFormat": "Used RAM",
           "refId": "A"
         },
         {
-          "expr": "node_memory_MemAvailable_bytes",
+          "expr": "max(node_memory_MemAvailable_bytes)",
           "legendFormat": "Available RAM",
           "refId": "B"
         },
         {
-          "expr": "node_memory_Cached_bytes + node_memory_Buffers_bytes",
+          "expr": "max(node_memory_Cached_bytes + node_memory_Buffers_bytes)",
           "legendFormat": "Cached/Buffers",
           "refId": "C"
         }
@@ -106,40 +152,64 @@
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Host physical LVM root filesystem (455Gi total)",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "max": 488420507648,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 366315380736 },
-              { "color": "red", "value": 439578456883 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 366315380736
+              },
+              {
+                "color": "red",
+                "value": 439578456883
+              }
             ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
       "id": 103,
       "options": {
         "displayMode": "lcd",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "showUnfilled": true
       },
       "targets": [
         {
-          "expr": "node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_free_bytes{mountpoint=\"/\"}",
+          "expr": "max(node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_free_bytes{mountpoint=\"/\"})",
           "legendFormat": "Terpakai (Root /)",
           "refId": "A"
         },
         {
-          "expr": "node_filesystem_free_bytes{mountpoint=\"/\"}",
+          "expr": "max(node_filesystem_free_bytes{mountpoint=\"/\"})",
           "legendFormat": "Sisa Kapasitas (Free)",
           "refId": "B"
         }
@@ -148,28 +218,51 @@
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bps"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Uptime" },
-            "properties": [{ "id": "unit", "value": "s" }]
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
           }
         ]
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
       "id": 104,
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
       },
       "targets": [
         {
-          "expr": "time() - node_boot_time_seconds",
+          "expr": "max(time() - node_boot_time_seconds)",
           "legendFormat": "Uptime",
           "refId": "A"
         },
@@ -189,24 +282,46 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
       "id": 110,
-      "title": "☸️ Kubernetes Workload & Cloudflare Tunnel",
+      "title": "\u2638\ufe0f Kubernetes Workload & Cloudflare Tunnel",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Top 7 pods consuming the most memory working set",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 25 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 25
+          },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
       "id": 111,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "topk(7, container_memory_working_set_bytes{pod!=\"\"})",
@@ -218,18 +333,35 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Top 7 pods consuming the most CPU cores",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 25 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 25
+          },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
       "id": 112,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "topk(7, sum(rate(container_cpu_usage_seconds_total{pod!=\"\"}[2m])) by (pod, namespace))",
@@ -241,33 +373,65 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Cloudflare Tunnel HA Connections & Edge Error Rate",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 2 },
-              { "color": "green", "value": 4 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "green",
+                "value": 4
+              }
             ]
           },
           "unit": "none"
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Edge Request Errors/s" },
-            "properties": [{ "id": "unit", "value": "errps" }]
+            "matcher": {
+              "id": "byName",
+              "options": "Edge Request Errors/s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "errps"
+              }
+            ]
           }
         ]
       },
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
       "id": 113,
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
       },
       "targets": [
         {
@@ -286,14 +450,27 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
       "id": 1,
-      "title": "📋 Cluster Pod Logs (Live Stream via Loki & Alloy)",
+      "title": "\ud83d\udccb Cluster Pod Logs (Live Stream via Loki & Alloy)",
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 15 },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
       "id": 2,
       "options": {
         "dedupStrategy": "none",
@@ -306,7 +483,10 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
           "editorMode": "code",
           "expr": "{container=~\".+\", namespace=~\"$namespace\", pod=~\"$pod\"} |= \"$search\"",
           "queryType": "range",
@@ -318,23 +498,46 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
       "id": 3,
-      "title": "🌐 Ingress NGINX, Edge Traffic & Top Endpoints",
+      "title": "\ud83c\udf10 Ingress NGINX, Edge Traffic & Top Endpoints",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 20, "gradientMode": "opacity" },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 20,
+            "gradientMode": "opacity"
+          },
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 26 },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
       "id": 4,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "sum(rate(nginx_ingress_controller_requests[2m])) by (status)",
@@ -346,17 +549,34 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 15 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 15
+          },
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 26 },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 26
+      },
       "id": 5,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "topk(10, sum(rate(nginx_ingress_controller_requests[2m])) by (host))",
@@ -368,17 +588,34 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 20 },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 20
+          },
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 26 },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 26
+      },
       "id": 20,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "topk(7, sum(rate(nginx_ingress_controller_requests[2m])) by (host, path))",
@@ -396,33 +633,62 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
       "id": 6,
-      "title": "🐘 PostgreSQL Database Performance & Storage",
+      "title": "\ud83d\udc18 PostgreSQL Database Performance & Storage",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "red", "value": 100 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
             ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 35 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 35
+      },
       "id": 7,
       "options": {
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
       },
       "targets": [
         {
@@ -434,22 +700,37 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Active connections per service database",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 8, "x": 4, "y": 35 },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 4,
+        "y": 35
+      },
       "id": 21,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
@@ -463,30 +744,54 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "PostgreSQL local storage usage on PVC (20Gi total)",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "max": 21474836480,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 15032385536 },
-              { "color": "red", "value": 19327352832 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 15032385536
+              },
+              {
+                "color": "red",
+                "value": 19327352832
+              }
             ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 35 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 35
+      },
       "id": 22,
       "options": {
         "displayMode": "lcd",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "showUnfilled": true
       },
       "targets": [
@@ -505,16 +810,31 @@
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 35 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 35
+      },
       "id": 8,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "pg_database_size_bytes{datname!~\"template.*\"}",
@@ -526,16 +846,31 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "ops"
         }
       },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 42 },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
       "id": 9,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "sum(rate(pg_stat_database_xact_commit[2m])) by (datname)",
@@ -548,42 +883,71 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
       "id": 23,
-      "title": "🍃 MongoDB Database & Storage",
+      "title": "\ud83c\udf43 MongoDB Database & Storage",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "Connected services: mongo-express & K8s Health Probes",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "red", "value": 100 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
             ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 50 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 50
+      },
       "id": 24,
       "options": {
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
       },
       "targets": [
         {
-          "expr": "mongodb_ss_connections{conn_type=\"current\"} or mongodb_connections{state=\"current\"}",
+          "expr": "max(mongodb_ss_connections{conn_type=\"current\"} or mongodb_connections{state=\"current\"})",
           "legendFormat": "Current Connections",
           "refId": "A"
         },
         {
-          "expr": "mongodb_ss_connections{conn_type=\"active\"} or mongodb_connections{state=\"active\"}",
+          "expr": "max(mongodb_ss_connections{conn_type=\"active\"} or mongodb_connections{state=\"active\"})",
           "legendFormat": "Active Operations",
           "refId": "B"
         }
@@ -592,30 +956,54 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "description": "MongoDB local storage usage on PVC (5Gi total)",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "max": 5368709120,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 3758096384 },
-              { "color": "red", "value": 4831838208 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3758096384
+              },
+              {
+                "color": "red",
+                "value": 4831838208
+              }
             ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 50 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 50
+      },
       "id": 25,
       "options": {
         "displayMode": "lcd",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "showUnfilled": true
       },
       "targets": [
@@ -634,21 +1022,36 @@
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 50 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 50
+      },
       "id": 26,
       "options": {
         "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
         "textMode": "auto"
       },
       "targets": [
@@ -662,16 +1065,31 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "ops"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 50 },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 50
+      },
       "id": 27,
-      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "targets": [
         {
           "expr": "sum(rate(mongodb_op_counters_total[2m])) by (type)",
@@ -684,136 +1102,535 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
       "id": 10,
-      "title": "⚡ Redis Cache, MinIO S3 & MQTT",
+      "title": "\u26a1 Redis Cache, MinIO S3 & MQTT",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "blue", "value": null }]
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 58
+      },
       "id": 11,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "redis_connected_clients", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "redis_connected_clients",
+          "refId": "A"
+        }
+      ],
       "title": "Redis Clients",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "purple", "value": null }]
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 58
+      },
       "id": 12,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "redis_memory_used_bytes", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "redis_memory_used_bytes",
+          "refId": "A"
+        }
+      ],
       "title": "Redis Memory",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "orange", "value": null }]
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 8,
+        "y": 58
+      },
       "id": 13,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "minio_cluster_bucket_total", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "minio_cluster_bucket_total",
+          "refId": "A"
+        }
+      ],
       "title": "MinIO S3 Buckets",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 58
+      },
       "id": 14,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "minio_cluster_capacity_raw_free_bytes", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "minio_cluster_capacity_raw_free_bytes",
+          "refId": "A"
+        }
+      ],
       "title": "MinIO Free Capacity",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "teal", "value": null }]
+            "steps": [
+              {
+                "color": "teal",
+                "value": null
+              }
+            ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 58
+      },
       "id": 15,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "emqx_connections_count", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "emqx_connections_count",
+          "refId": "A"
+        }
+      ],
       "title": "EMQX MQTT Clients",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 58 },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 58
+      },
       "id": 16,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "targets": [{ "expr": "sum(certmanager_certificate_ready_status{condition=\"True\"})", "refId": "A" }],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(certmanager_certificate_ready_status{condition=\"True\"})",
+          "refId": "A"
+        }
+      ],
       "title": "SSL Certs Ready",
       "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
+      "id": 120,
+      "title": "\ud83d\udee1\ufe0f Disaster Recovery (DR) & Backblaze B2 Backup",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "description": "Active origin routing via Cloudflare DNS (origin.homelab.faisalaffan.com). Web Console: https://dr.faisalaffan.com",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 66
+      },
+      "id": 121,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "dr_active_origin",
+          "legendFormat": "Active: {{origin}} (Standby: {{standby}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Active DR Routing Origin & DNS Target",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "description": "Offsite client-side encrypted K3s cluster database & Persistent Volumes backup (Restic -> Backblaze B2)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 28800
+              },
+              {
+                "color": "red",
+                "value": 86400
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time Since Last Backup"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 66
+      },
+      "id": 122,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "expr": "dr_b2_backup_status",
+          "legendFormat": "Backup Health (Target: Backblaze B2)",
+          "refId": "A"
+        },
+        {
+          "expr": "time() - dr_b2_backup_last_success_timestamp",
+          "legendFormat": "Time Since Last Backup",
+          "refId": "B"
+        }
+      ],
+      "title": "Backblaze B2 Restic Backup Health",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "victoriametrics"
+      },
+      "description": "Cold-Standby Cloud failover readiness and retention policy (Daily: 7, Weekly: 4, Monthly: 3)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 66
+      },
+      "id": 123,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "expr": "dr_failover_standby_cvm_status",
+          "legendFormat": "Standby CVM Ready (Tencent AP-SG)",
+          "refId": "A"
+        }
+      ],
+      "title": "Standby Cloud Provider & Retention",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      },
+      "id": 124,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{container=~\".+\", namespace=\"infra\", pod=~\"k3s-b2-backup.*\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "\ud83d\udccb Disaster Recovery (Restic B2 Backup & Prune) Live Log Stream",
+      "type": "logs"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["infrastructure", "alloy", "lgtm"],
+  "tags": [
+    "infrastructure",
+    "alloy",
+    "lgtm"
+  ],
   "templating": {
     "list": [
       {
         "allValue": ".+",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
-        "datasource": { "type": "loki", "uid": "loki" },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
         "definition": "label_values(namespace)",
         "hide": 0,
         "includeAll": true,
@@ -830,8 +1647,15 @@
       },
       {
         "allValue": ".+",
-        "current": { "selected": true, "text": "All", "value": "$__all" },
-        "datasource": { "type": "loki", "uid": "loki" },
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
         "definition": "label_values({container=~\".+\", namespace=~\"$namespace\"}, pod)",
         "hide": 0,
         "includeAll": true,
@@ -847,7 +1671,11 @@
         "type": "query"
       },
       {
-        "current": { "selected": false, "text": "", "value": "" },
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
         "hide": 0,
         "label": "Log Search Filter",
         "name": "search",
@@ -858,11 +1686,13 @@
       }
     ]
   },
-  "time": { "from": "now-30m", "to": "now" },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Infrastructure & Services Unified Overview",
   "uid": "infra-unified-overview",
   "version": 1
 }
-

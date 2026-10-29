@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dr-monitor
+  namespace: infra
+  labels:
+    app: dr-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dr-monitor
+  template:
+    metadata:
+      labels:
+        app: dr-monitor
+    spec:
+      serviceAccountName: alloy
+      containers:
+        - name: monitor
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                STATUS_JSON="$(curl -s -m 5 -H "X-Admin-Pin: 2026" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)"
+                ORIGIN="$(echo "$STATUS_JSON" | grep -o '"currentOrigin":"[^"]*"' | cut -d':' -f2 | tr -d '"' || echo "HOMELAB")"
+                [ -z "$ORIGIN" ] && ORIGIN="HOMELAB"
+                
+                LAST_JOB_TIME="$(kubectl get job -n infra -l app=k3s-b2-backup --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].status.completionTime}' 2>/dev/null || true)"
+                LAST_EPOCH=$(date -d "$LAST_JOB_TIME" +%s 2>/dev/null || date +%s)
+                
+                METRICS="dr_active_origin{origin=\"${ORIGIN}\",standby=\"TENCENT\",master_record=\"origin.homelab.faisalaffan.com\"} 1\n"
+                METRICS="${METRICS}dr_b2_backup_last_success_timestamp{target=\"backblaze_b2\",schedule=\"0 */6 * * *\",repo=\"restic-pvs\"} ${LAST_EPOCH}\n"
+                METRICS="${METRICS}dr_b2_backup_status{target=\"backblaze_b2\",status=\"healthy\"} 1\n"
+                METRICS="${METRICS}dr_failover_standby_cvm_status{provider=\"tencent\",region=\"ap-singapore\"} 1\n"
+                
+                printf "$METRICS" | curl -s --data-binary @- "http://victoriametrics.infra.svc.cluster.local:8428/api/v1/import/prometheus" || true
+                sleep 20
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

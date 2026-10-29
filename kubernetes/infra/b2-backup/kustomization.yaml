@@ -4,3 +4,4 @@ namespace: infra
 resources:
   - secret.yaml
   - cronjob.yaml
+  - dr-monitor.yaml
