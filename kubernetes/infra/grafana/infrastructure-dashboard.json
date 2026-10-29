@@ -578,12 +578,12 @@
       },
       "targets": [
         {
-          "expr": "mongodb_ss_connections{conn_type=\"current\"}",
+          "expr": "mongodb_connections{state=\"current\"}",
           "legendFormat": "Current Connections",
           "refId": "A"
         },
         {
-          "expr": "mongodb_ss_connections{conn_type=\"active\"}",
+          "expr": "mongodb_connections{state=\"active\"}",
           "legendFormat": "Active Operations",
           "refId": "B"
         }
