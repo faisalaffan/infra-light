@@ -4,7 +4,6 @@ namespace: infra
 resources:
   - base
   - postgres
-  - mysql
   - redis
   - victoriametrics
   - loki
@@ -24,6 +23,5 @@ resources:
   - phoenix
   - ingress
   - networkpolicy
-  - azure-sql-edge
   - b2-backup
 

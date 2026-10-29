@@ -174,8 +174,6 @@ vault_cf_tunnel_token: "${CF_TUNNEL_TOKEN:-}"
 vault_k3s_token: "${K3S_TOKEN:-k3s-local-dev-token-2026}"
 vault_pg_superuser_password: "${PG_SUPERUSER_PASSWORD:-postgres_super_secret_2026}"
 vault_pg_app_password: "${PG_APP_PASSWORD:-appuser_secret_2026}"
-vault_mysql_root_password: "${MYSQL_ROOT_PASSWORD:-root_secret_2026}"
-vault_mysql_app_password: "${MYSQL_PASSWORD:-appuser_secret_2026}"
 vault_grafana_admin_password: "${GRAFANA_ADMIN_PASSWORD:-admin_secret_2026}"
 VAULTEOF
     log "vault.yml generated"
@@ -246,7 +244,7 @@ deploy_helmcharts() {
 
 # ------------------------------------------------------------------
 # Deploy first-party via Kustomize
-# PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# PostgreSQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
 # Menggunakan envsubst untuk resolve ${VAR:-default} dari .env
 # ------------------------------------------------------------------
 # Postgres image: faisalaffan/postgres-all (Auto-built via GitHub Actions)
@@ -285,7 +283,7 @@ build_postgres_image() {
 
 # ------------------------------------------------------------------
 # Deploy first-party via Kustomize
-# PostgreSQL, MySQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
+# PostgreSQL, VictoriaMetrics, Loki, Tempo, Pyroscope, Grafana, Alloy, Ingress
 # Idempotent — aman dijalankan berkali-kali
 # ------------------------------------------------------------------
 deploy_kustomize() {
@@ -745,54 +743,6 @@ fix_kubeconfig() {
 }
 
 # ------------------------------------------------------------------
-# Google MCP Toolbox (for mysql MCP)
-# ------------------------------------------------------------------
-install_toolbox() {
-    if command -v toolbox &>/dev/null; then
-        log "toolbox already installed"
-    else
-        log "Installing Google MCP Toolbox v${TOOLBOX_VERSION}..."
-        local url
-        if [ "$OS" = "linux" ]; then
-            url="https://storage.googleapis.com/mcp-toolbox-for-databases/v${TOOLBOX_VERSION}/linux/amd64/toolbox"
-        else
-            url="https://storage.googleapis.com/mcp-toolbox-for-databases/v${TOOLBOX_VERSION}/darwin/arm64/toolbox"
-        fi
-        curl -L -o "$HOME/.local/bin/toolbox" "$url"
-        chmod +x "$HOME/.local/bin/toolbox"
-    fi
-    export PATH="$HOME/.local/bin:$PATH"
-}
-
-# ------------------------------------------------------------------
-# Setup Claude Code MCP servers
-# ------------------------------------------------------------------
-setup_mcp() {
-    log "Setting up Claude Code MCP servers..."
-
-    if ! command -v claude &>/dev/null; then
-        warn "claude CLI not found. Run: npm install -g @anthropic-ai/claude-code"
-        return
-    fi
-
-    # MySQL MCP — skip if already configured
-    if claude mcp get mysql &>/dev/null 2>&1; then
-        log "MySQL MCP already configured, skipping"
-        return
-    fi
-
-    claude mcp add mysql -s user \
-        -e MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}" \
-        -e MYSQL_PORT="${MYSQL_PORT:-3306}" \
-        -e MYSQL_USER="${MYSQL_USER:-appuser}" \
-        -e MYSQL_PASSWORD="${MYSQL_PASSWORD:-appuser_secret_2026}" \
-        -e MYSQL_DATABASE="${MYSQL_DATABASE:-appdb}" \
-        -- "$HOME/.local/bin/toolbox" --prebuilt=mysql --stdio 2>/dev/null || warn "MySQL MCP setup skipped"
-
-    log "MCP servers configured"
-}
-
-# ------------------------------------------------------------------
 # Verify TLS — check cert-manager issues certificates after deploy
 # ------------------------------------------------------------------
 verify_tls() {
@@ -879,7 +829,6 @@ print_summary() {
     echo ""
     echo "  Key Internal Endpoints (Accessible from Tailnet):"
     echo "    PostgreSQL 17:   postgres.infra:5432"
-    echo "    MySQL 8.4:       mysql.infra:3306"
     echo "    Redis:           redis.infra:6379"
     echo "    Redpanda Kafka:  redpanda.infra:9092"
     echo "    NATS:            nats.infra:4222"
@@ -951,7 +900,6 @@ main() {
     install_ansible
     setup_ssh
     setup_vault
-    install_toolbox
 
     if [ "${SUDO_SKIP:-false}" = true ]; then
         warn "Skipping bootstrap_k3s (needs sudo)"
@@ -960,7 +908,6 @@ main() {
     fi
 
     deploy_all
-    setup_mcp
     verify_tls
     print_summary
 }
