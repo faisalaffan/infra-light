@@ -149,6 +149,8 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources
             - name: dashboards-provider
               mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards-infra
+              mountPath: /etc/grafana/provisioning/dashboards/infra
             - name: dashboards-slo
               mountPath: /etc/grafana/provisioning/dashboards/slo
             - name: data
@@ -167,6 +169,9 @@ spec:
         - name: dashboards-provider
           configMap:
             name: grafana-dashboards-provider
+        - name: dashboards-infra
+          configMap:
+            name: grafana-dashboards-infra
         - name: dashboards-slo
           configMap:
             name: grafana-dashboards-slo

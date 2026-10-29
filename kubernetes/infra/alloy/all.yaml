@@ -5,27 +5,40 @@ metadata:
   namespace: infra
 data:
   config.alloy: |
-    logging { level = "info" }
+    logging {
+      level = "info"
+    }
 
-    // ── OTLP Receiver (gRPC + HTTP) ──────────────────────────
+    // ── OTLP Receiver (gRPC + HTTP) for Microservices ────────
     otelcol.receiver.otlp "default" {
-      grpc { endpoint = "0.0.0.0:4317" }
-      http { endpoint = "0.0.0.0:4318" }
+      grpc {
+        endpoint = "0.0.0.0:4317"
+      }
+
+      http {
+        endpoint = "0.0.0.0:4318"
+      }
 
       output {
-        metrics  = [otelcol.processor.batch.metrics.input]
-        logs     = [otelcol.processor.batch.logs.input]
-        traces   = [otelcol.processor.batch.traces.input]
+        metrics = [otelcol.processor.batch.metrics.input]
+        logs    = [otelcol.processor.batch.logs.input]
+        traces  = [otelcol.processor.batch.traces.input]
       }
     }
 
-    // ── Batch processors (reduce backend pressure) ───────────
+    // ── Batch Processors ──────────────────────────────────────
     otelcol.processor.batch "metrics" {
-      output { metrics = [otelcol.exporter.prometheus.default.input] }
+      output {
+        metrics = [otelcol.exporter.prometheus.default.input]
+      }
     }
+
     otelcol.processor.batch "logs" {
-      output { logs = [otelcol.exporter.loki.default.input] }
+      output {
+        logs = [otelcol.exporter.loki.default.input]
+      }
     }
+
     otelcol.processor.batch "traces" {
       output {
         traces = [
@@ -35,17 +48,18 @@ data:
       }
     }
 
-    // ── Metrics → VictoriaMetrics ────────────────────────────
+    // ── Metrics → VictoriaMetrics ─────────────────────────────
     otelcol.exporter.prometheus "default" {
       forward_to = [prometheus.remote_write.default.receiver]
     }
+
     prometheus.remote_write "default" {
       endpoint {
-        url = "http://victoriametrics.infra.svc:8428/api/v1/write"
+        url = "http://victoriametrics.infra.svc.cluster.local:8428/api/v1/write"
       }
     }
 
-    // ── Logs → Loki ──────────────────────────────────────────
+    // ── Logs → Loki ───────────────────────────────────────────
     otelcol.exporter.loki "default" {
       forward_to = [loki.process.otlp_logs.receiver]
     }
@@ -55,116 +69,230 @@ data:
 
       stage.json {
         expressions = {
-          user_agent          = "attributes.\"user_agent.original\" || attributes.\"http.user_agent\"",
-          severity            = "severity_text || severity",
-          environment         = "resources.\"deployment.environment.name\" || attributes.\"deployment.environment\" || resources.\"deployment.environment\"",
-          service_namespace   = "resources.\"service.namespace\"",
-          cloud_region        = "resources.\"cloud.region\"",
-          k8s_cluster_name    = "resources.\"k8s.cluster.name\"",
-          k8s_namespace_name  = "resources.\"k8s.namespace.name\"",
-          k8s_deployment_name = "resources.\"k8s.deployment.name\"",
-          trace_id            = "trace_id || attributes.trace_id || attributes.traceID",
-          span_id             = "span_id || attributes.span_id || attributes.spanID",
-          request_id          = "attributes.\"app.request_id\" || attributes.\"http.request_id\"",
-          correlation_id      = "attributes.\"app.correlation_id\"",
-          causation_id        = "attributes.\"app.causation_id\"",
+          attributes          = "attributes",
           business_ref        = "attributes.\"app.business_ref\"",
-          idempotency_key     = "attributes.\"app.idempotency_key\"",
-          status_code         = "attributes.\"http.response.status_code\" || attributes.\"http.status_code\"",
-          route               = "attributes.\"http.route\"",
-          method              = "attributes.\"http.request.method\" || attributes.\"http.method\"",
-          event_name          = "event_name",
-          outcome             = "attributes.\"app.outcome\"",
-          duration_ms         = "attributes.\"app.duration_ms\"",
-          tenant_id           = "attributes.\"app.tenant_id\"",
+          causation_id        = "attributes.\"app.causation_id\"",
           channel             = "attributes.\"app.channel\"",
-          k8s_pod_name        = "resources.\"k8s.pod.name\"",
-          service_version     = "resources.\"service.version\"",
+          cloud_region        = "resources.\"cloud.region\"",
           container_image_tag = "resources.\"container.image.tag\"",
+          correlation_id      = "attributes.\"app.correlation_id\"",
           db_system           = "attributes.\"db.system.name\"",
-          error_type          = "attributes.\"error.type\"",
-          exception_type      = "attributes.\"exception.type\"",
-          exception_message   = "attributes.\"exception.message\"",
+          duration_ms         = "attributes.\"app.duration_ms\"",
+          environment         = "resources.\"deployment.environment.name\" || attributes.\"deployment.environment\" || resources.\"deployment.environment\"",
           error_code          = "attributes.\"app.error_code\"",
+          error_type          = "attributes.\"error.type\"",
+          event_name          = "event_name",
+          exception_message   = "attributes.\"exception.message\"",
+          exception_type      = "attributes.\"exception.type\"",
+          idempotency_key     = "attributes.\"app.idempotency_key\"",
+          k8s_cluster_name    = "resources.\"k8s.cluster.name\"",
+          k8s_deployment_name = "resources.\"k8s.deployment.name\"",
+          k8s_namespace_name  = "resources.\"k8s.namespace.name\"",
+          k8s_pod_name        = "resources.\"k8s.pod.name\"",
+          method              = "attributes.\"http.request.method\" || attributes.\"http.method\"",
+          outcome             = "attributes.\"app.outcome\"",
+          request_id          = "attributes.\"app.request_id\" || attributes.\"http.request_id\"",
+          resources           = "resources",
+          route               = "attributes.\"http.route\"",
+          service_name        = "resources.\"service.name\"",
+          service_namespace   = "resources.\"service.namespace\"",
+          service_version     = "resources.\"service.version\"",
+          severity            = "severity_text || severity",
+          span_id             = "span_id || attributes.span_id || attributes.spanID",
+          status_code         = "attributes.\"http.response.status_code\" || attributes.\"http.status_code\"",
+          tenant_id           = "attributes.\"app.tenant_id\"",
+          trace_id            = "trace_id || attributes.trace_id || attributes.traceID",
+          user_agent          = "attributes.\"user_agent.original\" || attributes.\"http.user_agent\"",
         }
       }
 
-      // Drop synthetic health checks from kube-probe
       stage.drop {
-        source     = "user_agent"
         expression = "^kube-probe.*"
+        source     = "user_agent"
       }
 
       stage.labels {
         values = {
-          service_namespace           = "service_namespace",
-          deployment_environment_name = "environment",
           cloud_region                = "cloud_region",
+          deployment_environment_name = "environment",
           k8s_cluster_name            = "k8s_cluster_name",
-          k8s_namespace_name          = "k8s_namespace_name",
           k8s_deployment_name         = "k8s_deployment_name",
+          k8s_namespace_name          = "k8s_namespace_name",
+          service_name                = "service_name",
+          service_namespace           = "service_namespace",
         }
       }
 
       stage.structured_metadata {
         values = {
-          trace_id          = "trace_id",
-          span_id           = "span_id",
-          request_id        = "request_id",
-          correlation_id    = "correlation_id",
-          causation_id      = "causation_id",
           business_ref      = "business_ref",
-          idempotency_key   = "idempotency_key",
-          status_code       = "status_code",
-          route             = "route",
-          method            = "method",
-          event_name        = "event_name",
-          outcome           = "outcome",
-          duration_ms       = "duration_ms",
-          tenant_id         = "tenant_id",
+          causation_id      = "causation_id",
           channel           = "channel",
-          pod_name          = "k8s_pod_name",
-          service_version   = "service_version",
-          image_tag         = "container_image_tag",
+          correlation_id    = "correlation_id",
           db_system         = "db_system",
-          error_type        = "error_type",
-          exception_type    = "exception_type",
-          exception_message = "exception_message",
+          duration_ms       = "duration_ms",
           error_code        = "error_code",
+          error_type        = "error_type",
+          event_name        = "event_name",
+          exception_message = "exception_message",
+          exception_type    = "exception_type",
+          idempotency_key   = "idempotency_key",
+          image_tag         = "container_image_tag",
+          method            = "method",
+          outcome           = "outcome",
+          pod_name          = "k8s_pod_name",
+          request_id        = "request_id",
+          route             = "route",
+          service_version   = "service_version",
+          span_id           = "span_id",
+          status_code       = "status_code",
+          tenant_id         = "tenant_id",
+          trace_id          = "trace_id",
         }
       }
     }
 
+    // ── Cluster Pod Logs Collector (All Pods in All Namespaces) ──
+    local.file_match "pod_logs" {
+      path_targets = [{
+        __path__ = "/var/log/pods/*/*/*.log",
+      }]
+    }
+
+    loki.process "cluster_pod_logs" {
+      forward_to = [loki.write.default.receiver]
+
+      stage.regex {
+        expression = "/var/log/pods/(?P<namespace>[^_]+)_(?P<pod>[^_]+)_[^/]+/(?P<container>[^/]+)/.*\\.log"
+        source     = "filename"
+      }
+
+      stage.labels {
+        values = {
+          container = "container",
+          namespace = "namespace",
+          pod       = "pod",
+        }
+      }
+    }
+
+    loki.source.file "cluster_pod_logs" {
+      forward_to = [loki.process.cluster_pod_logs.receiver]
+      targets    = local.file_match.pod_logs.targets
+    }
+
     loki.write "default" {
       endpoint {
-        url = "http://loki.infra.svc:3100/loki/api/v1/push"
+        url = "http://loki.infra.svc.cluster.local:3100/loki/api/v1/push"
       }
     }
 
     // ── Traces → Tempo & Phoenix ──────────────────────────────
     otelcol.exporter.otlp "tempo" {
       client {
-        endpoint = "tempo.infra.svc:4317"
-        tls { insecure = true }
+        endpoint = "tempo.infra.svc.cluster.local:4317"
+
+        tls {
+          insecure = true
+        }
       }
     }
 
     otelcol.exporter.otlp "phoenix" {
       client {
-        endpoint = "phoenix.infra.svc:4317"
-        tls { insecure = true }
+        endpoint = "phoenix.infra.svc.cluster.local:4317"
+        headers = {
+          "api_key" = sys.env("PHOENIX_ADMIN_SECRET"),
+        }
+        tls {
+          insecure = true
+        }
       }
     }
 
-    // ── Infra scraping (keep existing) ────────────────────────
-    prometheus.scrape "infra" {
-      targets = [
-        {"__address__" = "victoriametrics.infra.svc:8428", "job" = "victoriametrics"},
-        {"__address__" = "grafana.infra.svc:3000", "job" = "grafana"},
-        {"__address__" = "phoenix.infra.svc:9090", "job" = "phoenix"},
+    // ── Native Exporters (Postgres & Redis) ────────────────────
+    prometheus.exporter.postgres "postgres" {
+      data_source_names = ["postgresql://postgres:" + sys.env("POSTGRES_PASSWORD") + "@postgres.infra.svc.cluster.local:5432/postgres?sslmode=disable"]
+    }
+
+    prometheus.exporter.redis "redis" {
+      redis_addr = "redis.infra.svc.cluster.local:6379"
+    }
+
+    prometheus.scrape "postgres" {
+      scrape_interval = "15s"
+      targets         = prometheus.exporter.postgres.postgres.targets
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "redis" {
+      scrape_interval = "15s"
+      targets         = prometheus.exporter.redis.redis.targets
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    // ── Infra Services Scraping ───────────────────────────────
+    prometheus.scrape "infra_core" {
+      scrape_interval = "15s"
+      targets         = [
+        {"__address__" = "victoriametrics.infra.svc.cluster.local:8428", "job" = "victoriametrics"},
+        {"__address__" = "grafana.infra.svc.cluster.local:3000", "job" = "grafana"},
+        {"__address__" = "phoenix.infra.svc.cluster.local:9090", "job" = "phoenix"},
+        {"__address__" = "tempo.infra.svc.cluster.local:3200", "job" = "tempo"},
+        {"__address__" = "loki.infra.svc.cluster.local:3100", "job" = "loki"},
+        {"__address__" = "127.0.0.1:12345", "job" = "alloy"},
       ]
       forward_to = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "emqx" {
+      metrics_path    = "/api/v5/prometheus/stats"
       scrape_interval = "15s"
+      targets         = [{"__address__" = "emqx.infra.svc.cluster.local:18083", "job" = "emqx"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "redpanda" {
+      metrics_path    = "/public_metrics"
+      scrape_interval = "15s"
+      targets         = [{"__address__" = "redpanda.infra.svc.cluster.local:9644", "job" = "redpanda"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "zitadel" {
+      metrics_path    = "/debug/metrics"
+      scrape_interval = "15s"
+      targets         = [{"__address__" = "zitadel.infra.svc.cluster.local:8080", "job" = "zitadel"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "minio" {
+      metrics_path    = "/minio/v2/metrics/cluster"
+      scrape_interval = "30s"
+      targets         = [{"__address__" = "minio.infra.svc.cluster.local:9000", "job" = "minio"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "ingress_nginx" {
+      metrics_path    = "/metrics"
+      scrape_interval = "15s"
+      targets         = [{"__address__" = "ingress-nginx-controller-metrics.ingress-nginx.svc.cluster.local:10254", "job" = "ingress-nginx"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "cert_manager" {
+      metrics_path    = "/metrics"
+      scrape_interval = "30s"
+      targets         = [{"__address__" = "cert-manager.cert-manager.svc.cluster.local:9402", "job" = "cert-manager"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "qdrant" {
+      metrics_path    = "/metrics"
+      scrape_interval = "15s"
+      targets         = [{"__address__" = "qdrant.infra.svc.cluster.local:6333", "job" = "qdrant"}]
+      bearer_token    = sys.env("QDRANT_API_KEY")
+      forward_to      = [prometheus.remote_write.default.receiver]
     }
 ---
 apiVersion: apps/v1
@@ -189,7 +317,14 @@ spec:
             - "run"
             - "/etc/alloy/config.alloy"
             - "--server.http.listen-addr=0.0.0.0:12345"
+          envFrom:
+            - secretRef:
+                name: infra-secrets
+            - secretRef:
+                name: phoenix-secrets
           securityContext:
+            runAsUser: 0
+            runAsGroup: 0
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
@@ -206,17 +341,29 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/alloy
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: varlogcontainers
+              mountPath: /var/log/containers
+              readOnly: true
           resources:
             requests:
-              memory: "64Mi"
-              cpu: "50m"
+              memory: "128Mi"
+              cpu: "100m"
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "512Mi"
+              cpu: "500m"
       volumes:
         - name: config
           configMap:
             name: alloy-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: varlogcontainers
+          hostPath:
+            path: /var/log/containers
 ---
 apiVersion: v1
 kind: Service
@@ -232,5 +379,8 @@ spec:
     - port: 4318
       targetPort: 4318
       name: otlp-http
+    - port: 12345
+      targetPort: 12345
+      name: metrics
   selector:
     app: alloy

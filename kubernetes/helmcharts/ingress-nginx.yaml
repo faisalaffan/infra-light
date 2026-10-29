@@ -14,3 +14,7 @@ spec:
         enabled: true
       service:
         type: ClusterIP
+      metrics:
+        enabled: true
+        service:
+          enabled: true

@@ -4,6 +4,12 @@ namespace: infra
 resources:
   - all.yaml
 configMapGenerator:
+  - name: grafana-dashboards-infra
+    files:
+      - infrastructure-dashboard.json=infrastructure-dashboard.json
+    options:
+      labels:
+        grafana_dashboard: "1"
   - name: grafana-dashboards-slo
     files:
       - slo-trace-red.json=slo-dashboard.json
