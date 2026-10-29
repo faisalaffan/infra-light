@@ -14,6 +14,13 @@ spec:
         enabled: true
       service:
         type: ClusterIP
+      config:
+        use-forwarded-headers: "true"
+        compute-full-forwarded-for: "true"
+        enable-real-ip: "true"
+        proxy-body-size: "100m"
+        proxy-buffer-size: "16k"
+        client-max-body-size: "100m"
       metrics:
         enabled: true
         service:
