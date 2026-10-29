@@ -229,6 +229,9 @@ bootstrap_k3s() {
 deploy_helmcharts() {
     log "Deploying third-party services (HelmChart)..."
 
+    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-admin}"
+    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:-redis_admin_secret_2026!}"
+
     # Ensure required namespaces exist (Tailscale Operator needs it)
     kubectl create namespace tailscale 2>/dev/null || true
     kubectl create namespace cert-manager 2>/dev/null || true
@@ -335,6 +338,16 @@ deploy_kustomize() {
             --dry-run=client -o yaml | kubectl apply -f -
     fi
 
+    # --- infra-basic-auth secret (for registry-ui, redpanda-console, nats) ---
+    export INFRA_BASIC_AUTH_USER="${INFRA_BASIC_AUTH_USER:-admin}"
+    export INFRA_BASIC_AUTH_PASSWORD="${INFRA_BASIC_AUTH_PASSWORD:-infra_admin_secret_2026!}"
+    local auth_htpasswd
+    auth_htpasswd=$(printf "%s:%s\n" "$INFRA_BASIC_AUTH_USER" "$(openssl passwd -apr1 "$INFRA_BASIC_AUTH_PASSWORD")")
+    kubectl create secret generic infra-basic-auth -n infra \
+        --from-literal=auth="$auth_htpasswd" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    log "infra-basic-auth secret configured ✓"
+
     # Default derivatif
     export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
     export CLOUDBEAVER_HOSTNAME="${CLOUDBEAVER_HOSTNAME:-db.${DOMAIN:-faisalaffan.com}}"
@@ -350,6 +363,11 @@ deploy_kustomize() {
     export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
     export MONGO_EXPRESS_USER="${MONGO_EXPRESS_USER:-admin}"
     export MONGO_EXPRESS_PASSWORD="${MONGO_EXPRESS_PASSWORD:-${MONGODB_ROOT_PASSWORD}}"
+    export MAILPIT_UI_USER="${MAILPIT_UI_USER:-admin}"
+    export MAILPIT_UI_PASSWORD="${MAILPIT_UI_PASSWORD:-mailpit_secret_2026!}"
+    export MAILPIT_UI_AUTH="${MAILPIT_UI_USER}:${MAILPIT_UI_PASSWORD}"
+    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-admin}"
+    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:-redis_admin_secret_2026!}"
     export PHOENIX_HOSTNAME="${PHOENIX_HOSTNAME:-phoenix.${DOMAIN:-faisalaffan.com}}"
     export PHOENIX_VERSION="${PHOENIX_VERSION:-latest}"
     export PHOENIX_DATA_SIZE="${PHOENIX_DATA_SIZE:-10Gi}"

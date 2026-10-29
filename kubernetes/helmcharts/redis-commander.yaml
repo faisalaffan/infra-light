@@ -16,6 +16,9 @@ spec:
       pullPolicy: Always
     redis:
       hosts: "infra:redis.infra:6379"
+    httpAuth:
+      username: "${REDIS_COMMANDER_USER}"
+      password: "${REDIS_COMMANDER_PASSWORD}"
     service:
       type: ClusterIP
       port: 80

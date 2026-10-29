@@ -84,6 +84,8 @@ spec:
               value: ""
             - name: MP_MAX_MESSAGES
               value: "5000"
+            - name: MP_UI_AUTH
+              value: "${MAILPIT_UI_AUTH}"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -101,14 +103,12 @@ spec:
               memory: "256Mi"
               cpu: "200m"
           readinessProbe:
-            httpGet:
-              path: /api/v1/info
+            tcpSocket:
               port: 8025
             initialDelaySeconds: 5
             periodSeconds: 5
           livenessProbe:
-            httpGet:
-              path: /api/v1/info
+            tcpSocket:
               port: 8025
             initialDelaySeconds: 15
             periodSeconds: 15

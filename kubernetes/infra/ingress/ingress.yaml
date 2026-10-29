@@ -31,13 +31,10 @@ spec:
         - ${EXCALIDRAW_HOSTNAME}
         - ${EMQX_DASHBOARD_HOSTNAME}
         - ${MAILPIT_UI_HOSTNAME}
-        - ${NATS_UI_HOSTNAME}
         - ${MONGO_UI_HOSTNAME}
         - ${REDIS_UI_HOSTNAME}
         - ${WOODPECKER_SERVER_HOST}
-        - ${REDPANDA_CONSOLE_HOSTNAME}
         - ${VAULT_UI_HOSTNAME}
-        - ${REGISTRY_UI_HOSTNAME}
         - ${QDRANT_UI_HOSTNAME}
         - ${PHOENIX_HOSTNAME}
       secretName: infra-tls
@@ -112,16 +109,6 @@ spec:
                 name: mailpit
                 port:
                   number: 8025
-    - host: ${NATS_UI_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nats-headless
-                port:
-                  number: 8222
     - host: ${MONGO_UI_HOSTNAME}
       http:
         paths:
@@ -152,16 +139,6 @@ spec:
                 name: woodpecker-server
                 port:
                   number: 8000
-    - host: ${REDPANDA_CONSOLE_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: redpanda-console
-                port:
-                  number: 8080
     - host: ${VAULT_UI_HOSTNAME}
       http:
         paths:
@@ -172,16 +149,6 @@ spec:
                 name: vault
                 port:
                   number: 8200
-    - host: ${REGISTRY_UI_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: docker-registry-ui
-                port:
-                  number: 80
     - host: ${QDRANT_UI_HOSTNAME}
       http:
         paths:
@@ -202,5 +169,68 @@ spec:
                 name: phoenix
                 port:
                   number: 6006
+---
+# =========================================================================
+# Ingress with HTTP Basic Auth protection
+# Protects platforms without native user auth:
+# Redpanda Console, Docker Registry UI, NATS Monitoring
+# =========================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: infra-auth-ingress
+  namespace: infra
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: '"${INGRESS_PROXY_BODY_SIZE}"'
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "0"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: infra-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${REDPANDA_CONSOLE_HOSTNAME}
+        - ${REGISTRY_UI_HOSTNAME}
+        - ${NATS_UI_HOSTNAME}
+      secretName: infra-auth-tls
+  rules:
+    - host: ${REDPANDA_CONSOLE_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: redpanda-console
+                port:
+                  number: 8080
+    - host: ${REGISTRY_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docker-registry-ui
+                port:
+                  number: 80
+    - host: ${NATS_UI_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nats-headless
+                port:
+                  number: 8222
 
 
