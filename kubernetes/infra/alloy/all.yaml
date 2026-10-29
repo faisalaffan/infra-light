@@ -210,13 +210,17 @@ data:
       }
     }
 
-    // ── Native Exporters (Postgres & Redis) ────────────────────
+    // ── Native Exporters (Postgres, Redis & MongoDB) ──────────
     prometheus.exporter.postgres "postgres" {
       data_source_names = ["postgresql://postgres:" + sys.env("POSTGRES_PASSWORD") + "@postgres.infra.svc.cluster.local:5432/postgres?sslmode=disable"]
     }
 
     prometheus.exporter.redis "redis" {
       redis_addr = "redis.infra.svc.cluster.local:6379"
+    }
+
+    prometheus.exporter.mongodb "mongodb" {
+      mongodb_uri = "mongodb://root:" + sys.env("MONGODB_ROOT_PASSWORD") + "@mongodb.infra.svc.cluster.local:27017/admin"
     }
 
     prometheus.scrape "postgres" {
@@ -228,6 +232,12 @@ data:
     prometheus.scrape "redis" {
       scrape_interval = "15s"
       targets         = prometheus.exporter.redis.redis.targets
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    prometheus.scrape "mongodb" {
+      scrape_interval = "15s"
+      targets         = prometheus.exporter.mongodb.mongodb.targets
       forward_to      = [prometheus.remote_write.default.receiver]
     }
 

@@ -69,3 +69,4 @@ END
 "
 
 echo "✅ All database schemas successfully imported into 'postgres' database via postgres_fdw!"
+
