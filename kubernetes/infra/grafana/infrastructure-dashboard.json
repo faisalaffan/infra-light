@@ -24,13 +24,276 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🖥️ Host Baremetal & Hardware Server Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 15 },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 101,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100)",
+          "legendFormat": "Host CPU %",
+          "refId": "A"
+        },
+        {
+          "expr": "node_load1",
+          "legendFormat": "Load 1m",
+          "refId": "B"
+        },
+        {
+          "expr": "node_load5",
+          "legendFormat": "Load 5m",
+          "refId": "C"
+        }
+      ],
+      "title": "Host CPU % & System Load Average",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "description": "Total Host RAM vs Used vs Available",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 24000000000 },
+              { "color": "red", "value": 30000000000 }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "id": 102,
+      "options": {
+        "displayMode": "lcd",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "Used RAM",
+          "refId": "A"
+        },
+        {
+          "expr": "node_memory_MemAvailable_bytes",
+          "legendFormat": "Available RAM",
+          "refId": "B"
+        },
+        {
+          "expr": "node_memory_Cached_bytes + node_memory_Buffers_bytes",
+          "legendFormat": "Cached/Buffers",
+          "refId": "C"
+        }
+      ],
+      "title": "Host RAM Memory Usage (Total / Used / Avail)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "description": "Host physical LVM root filesystem (455Gi total)",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 488420507648,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 366315380736 },
+              { "color": "red", "value": 439578456883 }
+            ]
+          },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "id": 103,
+      "options": {
+        "displayMode": "lcd",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_free_bytes{mountpoint=\"/\"}",
+          "legendFormat": "Terpakai (Root /)",
+          "refId": "A"
+        },
+        {
+          "expr": "node_filesystem_free_bytes{mountpoint=\"/\"}",
+          "legendFormat": "Sisa Kapasitas (Free)",
+          "refId": "B"
+        }
+      ],
+      "title": "Host Root Disk (LVM 455GiB): Terpakai vs Sisa",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "bps"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Uptime" },
+            "properties": [{ "id": "unit", "value": "s" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "id": 104,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+      },
+      "targets": [
+        {
+          "expr": "time() - node_boot_time_seconds",
+          "legendFormat": "Uptime",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(node_network_receive_bytes_total{device=~\"enp.*|tailscale0\"}[2m])) * 8",
+          "legendFormat": "Network Rx (In)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(node_network_transmit_bytes_total{device=~\"enp.*|tailscale0\"}[2m])) * 8",
+          "legendFormat": "Network Tx (Out)",
+          "refId": "C"
+        }
+      ],
+      "title": "Server Uptime & Physical Network",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "id": 110,
+      "title": "☸️ Kubernetes Workload & Cloudflare Tunnel",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "description": "Top 7 pods consuming the most memory working set",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 25 },
+          "unit": "bytes"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 8 },
+      "id": 111,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, container_memory_working_set_bytes{pod!=\"\"})",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Pods by RAM Working Set",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "description": "Top 7 pods consuming the most CPU cores",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 25 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 8 },
+      "id": 112,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "topk(7, sum(rate(container_cpu_usage_seconds_total{pod!=\"\"}[2m])) by (pod, namespace))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Pods by CPU Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "victoriametrics" },
+      "description": "Cloudflare Tunnel HA Connections & Edge Error Rate",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "green", "value": 4 }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Edge Request Errors/s" },
+            "properties": [{ "id": "unit", "value": "errps" }]
+          }
+        ]
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 8 },
+      "id": 113,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "values": false }
+      },
+      "targets": [
+        {
+          "expr": "cloudflared_tunnel_ha_connections",
+          "legendFormat": "Active Tunnel HA Connections (Target: 4)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(cloudflared_tunnel_request_errors[2m]))",
+          "legendFormat": "Edge Request Errors/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Cloudflare Tunnel Health & Connections",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
       "id": 1,
       "title": "📋 Cluster Pod Logs (Live Stream via Loki & Alloy)",
       "type": "row"
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 1 },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 15 },
       "id": 2,
       "options": {
         "dedupStrategy": "none",
@@ -55,7 +318,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
       "id": 3,
       "title": "🌐 Ingress NGINX, Edge Traffic & Top Endpoints",
       "type": "row"
@@ -69,7 +332,7 @@
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 11 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 26 },
       "id": 4,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -91,7 +354,7 @@
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 11 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 26 },
       "id": 5,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -113,7 +376,7 @@
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 11 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 26 },
       "id": 20,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -133,7 +396,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
       "id": 6,
       "title": "🐘 PostgreSQL Database Performance & Storage",
       "type": "row"
@@ -155,7 +418,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 19 },
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 35 },
       "id": 7,
       "options": {
         "orientation": "auto",
@@ -179,7 +442,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 8, "x": 4, "y": 19 },
+      "gridPos": { "h": 6, "w": 8, "x": 4, "y": 35 },
       "id": 21,
       "options": {
         "colorMode": "value",
@@ -218,7 +481,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 19 },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 35 },
       "id": 22,
       "options": {
         "displayMode": "lcd",
@@ -249,7 +512,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 19 },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 35 },
       "id": 8,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -270,7 +533,7 @@
           "unit": "ops"
         }
       },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 25 },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 42 },
       "id": 9,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -285,7 +548,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
       "id": 23,
       "title": "🍃 MongoDB Database & Storage",
       "type": "row"
@@ -307,7 +570,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 32 },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 50 },
       "id": 24,
       "options": {
         "orientation": "auto",
@@ -347,7 +610,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 32 },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 50 },
       "id": 25,
       "options": {
         "displayMode": "lcd",
@@ -378,7 +641,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 32 },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 50 },
       "id": 26,
       "options": {
         "colorMode": "value",
@@ -406,7 +669,7 @@
           "unit": "ops"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 32 },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 50 },
       "id": 27,
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
@@ -421,7 +684,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
       "id": 10,
       "title": "⚡ Redis Cache, MinIO S3 & MQTT",
       "type": "row"
@@ -438,7 +701,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 58 },
       "id": 11,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "redis_connected_clients", "refId": "A" }],
@@ -457,7 +720,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 58 },
       "id": 12,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "redis_memory_used_bytes", "refId": "A" }],
@@ -476,7 +739,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 58 },
       "id": 13,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "minio_cluster_bucket_total", "refId": "A" }],
@@ -495,7 +758,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 58 },
       "id": 14,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "minio_cluster_capacity_raw_free_bytes", "refId": "A" }],
@@ -514,7 +777,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 58 },
       "id": 15,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "emqx_connections_count", "refId": "A" }],
@@ -533,7 +796,7 @@
           "unit": "none"
         }
       },
-      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 39 },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 58 },
       "id": 16,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
       "targets": [{ "expr": "sum(certmanager_certificate_ready_status{condition=\"True\"})", "refId": "A" }],

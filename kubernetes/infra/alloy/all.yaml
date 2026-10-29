@@ -220,7 +220,11 @@ data:
     }
 
     prometheus.exporter.mongodb "mongodb" {
-      mongodb_uri = "mongodb://root:" + sys.env("MONGODB_ROOT_PASSWORD") + "@mongodb.infra.svc.cluster.local:27017/admin"
+      mongodb_uri     = "mongodb://root:" + sys.env("MONGODB_ROOT_PASSWORD") + "@mongodb.infra.svc.cluster.local:27017/admin"
+      direct_connect  = true
+      collect_all     = false
+      compatible_mode = false
+      enable_db_stats = true
     }
 
     prometheus.scrape "postgres" {
@@ -239,6 +243,46 @@ data:
       scrape_interval = "15s"
       targets         = prometheus.exporter.mongodb.mongodb.targets
       forward_to      = [prometheus.remote_write.default.receiver]
+    }
+
+    // ── Host Baremetal Hardware Exporter (Node Exporter) ──────
+    prometheus.exporter.unix "node" {
+      procfs_path = "/host/proc"
+      sysfs_path  = "/host/sys"
+      rootfs_path = "/host/root"
+    }
+
+    prometheus.scrape "node" {
+      scrape_interval = "15s"
+      targets         = prometheus.exporter.unix.node.targets
+      forward_to      = [prometheus.remote_write.default.receiver]
+      job_name        = "node-exporter"
+    }
+
+    // ── Cloudflare Tunnel Scraper ─────────────────────────────
+    prometheus.scrape "cloudflared" {
+      scrape_interval = "15s"
+      targets = [{
+        "__address__" = "cloudflared-metrics.infra.svc.cluster.local:2000",
+      }]
+      forward_to = [prometheus.remote_write.default.receiver]
+      job_name   = "cloudflared"
+    }
+
+    // ── Kubelet cAdvisor (Pod CPU/RAM & Restarts) ──────────────
+    prometheus.scrape "kubelet_cadvisor" {
+      scrape_interval = "15s"
+      scheme          = "https"
+      tls_config {
+        insecure_skip_verify = true
+      }
+      bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+      targets = [{
+        "__address__"      = "10.43.0.1:443",
+        "__metrics_path__" = "/api/v1/nodes/it-helpdesk/proxy/metrics/cadvisor",
+      }]
+      forward_to = [prometheus.remote_write.default.receiver]
+      job_name   = "kubelet-cadvisor"
     }
 
     // ── Infra Services Scraping ───────────────────────────────
@@ -320,6 +364,7 @@ spec:
       labels:
         app: alloy
     spec:
+      serviceAccountName: alloy
       containers:
         - name: alloy
           image: grafana/alloy:latest
@@ -357,6 +402,15 @@ spec:
             - name: varlogcontainers
               mountPath: /var/log/containers
               readOnly: true
+            - name: host-proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: host-sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: host-root
+              mountPath: /host/root
+              readOnly: true
           resources:
             requests:
               memory: "128Mi"
@@ -374,6 +428,15 @@ spec:
         - name: varlogcontainers
           hostPath:
             path: /var/log/containers
+        - name: host-proc
+          hostPath:
+            path: /proc
+        - name: host-sys
+          hostPath:
+            path: /sys
+        - name: host-root
+          hostPath:
+            path: /
 ---
 apiVersion: v1
 kind: Service
@@ -394,3 +457,55 @@ spec:
       name: metrics
   selector:
     app: alloy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alloy
+  namespace: infra
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-metrics
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - nodes/proxy
+      - nodes/spec
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics", "/metrics/cadvisor"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-metrics
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: infra
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflared-metrics
+  namespace: infra
+  labels:
+    app: cloudflared
+spec:
+  ports:
+    - name: metrics
+      port: 2000
+      targetPort: 2000
+  selector:
+    app: cloudflared
