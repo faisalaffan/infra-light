@@ -348,6 +348,8 @@ deploy_kustomize() {
     export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
     export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
+    export MONGO_EXPRESS_USER="${MONGO_EXPRESS_USER:-admin}"
+    export MONGO_EXPRESS_PASSWORD="${MONGO_EXPRESS_PASSWORD:-${MONGODB_ROOT_PASSWORD}}"
     export PHOENIX_HOSTNAME="${PHOENIX_HOSTNAME:-phoenix.${DOMAIN:-faisalaffan.com}}"
     export PHOENIX_VERSION="${PHOENIX_VERSION:-latest}"
     export PHOENIX_DATA_SIZE="${PHOENIX_DATA_SIZE:-10Gi}"

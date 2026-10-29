@@ -56,7 +56,17 @@ spec:
             - name: ME_CONFIG_SITE_BASEURL
               value: /
             - name: ME_CONFIG_BASICAUTH
-              value: "false"
+              value: "true"
+            - name: ME_CONFIG_BASICAUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-express-auth
+                  key: username
+            - name: ME_CONFIG_BASICAUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-express-auth
+                  key: basicauth-password
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -71,14 +81,12 @@ spec:
               memory: "128Mi"
               cpu: "200m"
           readinessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 8081
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 8081
             initialDelaySeconds: 30
             periodSeconds: 30
@@ -90,3 +98,5 @@ metadata:
   namespace: infra
 stringData:
   password: "${MONGODB_ROOT_PASSWORD}"
+  username: "${MONGO_EXPRESS_USER}"
+  basicauth-password: "${MONGO_EXPRESS_PASSWORD}"
