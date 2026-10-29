@@ -27,13 +27,25 @@ spec:
                 ORIGIN="$(echo "$STATUS_JSON" | grep -o '"currentOrigin":"[^"]*"' | cut -d':' -f2 | tr -d '"' || echo "HOMELAB")"
                 [ -z "$ORIGIN" ] && ORIGIN="HOMELAB"
                 
-                LAST_JOB_TIME="$(kubectl get job -n infra -l app=k3s-b2-backup --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].status.completionTime}' 2>/dev/null || true)"
-                LAST_EPOCH=$(date -d "$LAST_JOB_TIME" +%s 2>/dev/null || date +%s)
+                START_TIME="$(kubectl get job -n infra -l app=k3s-b2-backup --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].status.startTime}' 2>/dev/null || true)"
+                COMP_TIME="$(kubectl get job -n infra -l app=k3s-b2-backup --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].status.completionTime}' 2>/dev/null || true)"
+                START_EPOCH=$(date -d "$START_TIME" +%s 2>/dev/null || date +%s)
+                COMP_EPOCH=$(date -d "$COMP_TIME" +%s 2>/dev/null || date +%s)
+                DURATION=$((COMP_EPOCH - START_EPOCH))
+                [ $DURATION -lt 0 ] && DURATION=0
                 
-                METRICS="dr_active_origin{origin=\"${ORIGIN}\",standby=\"TENCENT\",master_record=\"origin.homelab.faisalaffan.com\"} 1\n"
-                METRICS="${METRICS}dr_b2_backup_last_success_timestamp{target=\"backblaze_b2\",schedule=\"0 */6 * * *\",repo=\"restic-pvs\"} ${LAST_EPOCH}\n"
-                METRICS="${METRICS}dr_b2_backup_status{target=\"backblaze_b2\",status=\"healthy\"} 1\n"
-                METRICS="${METRICS}dr_failover_standby_cvm_status{provider=\"tencent\",region=\"ap-singapore\"} 1\n"
+                NOW_EPOCH=$(date +%s)
+                NEXT_EPOCH=$((START_EPOCH + 21600))
+                while [ $NEXT_EPOCH -le $NOW_EPOCH ]; do
+                  NEXT_EPOCH=$((NEXT_EPOCH + 21600))
+                done
+                
+                METRICS="dr_active_origin{origin=\"${ORIGIN}\",standby=\"TENCENT\"} 1\n"
+                METRICS="${METRICS}dr_b2_backup_last_success_timestamp ${COMP_EPOCH}\n"
+                METRICS="${METRICS}dr_b2_backup_next_scheduled_timestamp ${NEXT_EPOCH}\n"
+                METRICS="${METRICS}dr_b2_backup_duration_seconds ${DURATION}\n"
+                METRICS="${METRICS}dr_b2_backup_status 1\n"
+                METRICS="${METRICS}dr_failover_standby_cvm_status 1\n"
                 
                 printf "$METRICS" | curl -s --data-binary @- "http://victoriametrics.infra.svc.cluster.local:8428/api/v1/import/prometheus" || true
                 sleep 20

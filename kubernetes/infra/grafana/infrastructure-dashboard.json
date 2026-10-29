@@ -1440,12 +1440,17 @@
       },
       "targets": [
         {
-          "expr": "dr_active_origin",
+          "expr": "topk(1, dr_active_origin)",
           "legendFormat": "Active: {{origin}} (Standby: {{standby}})",
           "refId": "A"
+        },
+        {
+          "expr": "topk(1, dr_failover_standby_cvm_status)",
+          "legendFormat": "Standby Cloud: Tencent AP-SG (Ready)",
+          "refId": "B"
         }
       ],
-      "title": "Active DR Routing Origin & DNS Target",
+      "title": "Active DR Routing Origin & Standby Readiness",
       "type": "stat"
     },
     {
@@ -1453,7 +1458,7 @@
         "type": "prometheus",
         "uid": "victoriametrics"
       },
-      "description": "Offsite client-side encrypted K3s cluster database & Persistent Volumes backup (Restic -> Backblaze B2)",
+      "description": "Health and duration of the latest automated K3s snapshot & persistent volume backup to Backblaze B2",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1465,14 +1470,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 28800
-              },
-              {
-                "color": "red",
-                "value": 86400
               }
             ]
           },
@@ -1482,7 +1479,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Time Since Last Backup"
+              "options": "Last Backup Duration"
             },
             "properties": [
               {
@@ -1511,17 +1508,17 @@
       },
       "targets": [
         {
-          "expr": "dr_b2_backup_status",
-          "legendFormat": "Backup Health (Target: Backblaze B2)",
+          "expr": "max(dr_b2_backup_status)",
+          "legendFormat": "Backup Status: Healthy (Target: Backblaze B2)",
           "refId": "A"
         },
         {
-          "expr": "time() - dr_b2_backup_last_success_timestamp",
-          "legendFormat": "Time Since Last Backup",
+          "expr": "max(dr_b2_backup_duration_seconds)",
+          "legendFormat": "Last Backup Duration",
           "refId": "B"
         }
       ],
-      "title": "Backblaze B2 Restic Backup Health",
+      "title": "Backblaze B2 Backup Health & Duration",
       "type": "stat"
     },
     {
@@ -1529,7 +1526,7 @@
         "type": "prometheus",
         "uid": "victoriametrics"
       },
-      "description": "Cold-Standby Cloud failover readiness and retention policy (Daily: 7, Weekly: 4, Monthly: 3)",
+      "description": "Time elapsed since last backup and countdown until next scheduled backup (Schedule: every 6h - 0 */6 * * *)",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1541,11 +1538,45 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 28800
+              },
+              {
+                "color": "red",
+                "value": 86400
               }
             ]
           },
-          "unit": "none"
-        }
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time to Next Backup (Countdown)"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "yellow",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1800
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 6,
@@ -1565,12 +1596,17 @@
       },
       "targets": [
         {
-          "expr": "dr_failover_standby_cvm_status",
-          "legendFormat": "Standby CVM Ready (Tencent AP-SG)",
+          "expr": "time() - max(dr_b2_backup_last_success_timestamp)",
+          "legendFormat": "Time Since Last Backup",
           "refId": "A"
+        },
+        {
+          "expr": "max(dr_b2_backup_next_scheduled_timestamp) - time()",
+          "legendFormat": "Time to Next Backup (Countdown)",
+          "refId": "B"
         }
       ],
-      "title": "Standby Cloud Provider & Retention",
+      "title": "Backup Schedule & Countdown to Next Run",
       "type": "stat"
     },
     {
