@@ -21,6 +21,7 @@ resources:
   - docker-registry
   - qdrant
   - phoenix
+  - 9router
   - ingress
   - networkpolicy
   - b2-backup

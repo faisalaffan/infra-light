@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ninerouter-data
+  namespace: infra
+  labels:
+    app: ninerouter
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: ${NINEROUTER_DATA_SIZE}

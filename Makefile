@@ -266,6 +266,31 @@ phoenix-help:
 	@echo "  make phoenix-logs          Follow live logs from Arize Phoenix"
 
 # ============================================================
+# 9Router (AI Gateway, RTK Compressor & Auto-Fallback) Management
+# ============================================================
+.PHONY: 9router-status 9router-health 9router-logs 9router-help
+
+9router-status:
+	@echo "--- 9Router Pods & Services ---"
+	@$(KUBECTL) get pods,svc,pvc -n $(NAMESPACE) -l app=ninerouter
+
+9router-health:
+	@echo "Checking 9Router health..."
+	@IP=$$($(KUBECTL) get svc ninerouter -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	echo -n "Health: "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$IP:20128/api/health" || true
+
+9router-logs:
+	@echo "--- 9Router Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=ninerouter --tail=50 -f
+
+9router-help:
+	@echo "9Router AI Proxy & Gateway Management (k3s infra)"
+	@echo ""
+	@echo "  make 9router-status        Show status of 9Router pods, service & PVC"
+	@echo "  make 9router-health        Check health endpoint of 9Router"
+	@echo "  make 9router-logs          Follow live logs from 9Router"
+
+# ============================================================
 # Backblaze B2 & Restic Disaster Recovery Management
 # ============================================================
 .PHONY: b2-backup b2-snapshots b2-check b2-unlock b2-cron-trigger b2-help

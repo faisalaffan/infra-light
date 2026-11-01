@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ninerouter
+  namespace: infra
+  labels:
+    app: ninerouter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ninerouter
+  template:
+    metadata:
+      labels:
+        app: ninerouter
+    spec:
+      containers:
+        - name: ninerouter
+          image: decolua/9router:${NINEROUTER_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 20128
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "20128"
+            - name: DATA_DIR
+              value: "/app/data"
+            - name: AUTH_COOKIE_SECURE
+              value: "true"
+            - name: REQUIRE_API_KEY
+              value: "true"
+            - name: ENABLE_REQUEST_LOGS
+              value: "true"
+            - name: OBSERVABILITY_ENABLED
+              value: "true"
+            - name: BASE_URL
+              value: "https://${NINEROUTER_HOSTNAME}"
+            - name: NEXT_PUBLIC_BASE_URL
+              value: "https://${NINEROUTER_HOSTNAME}"
+            - name: INITIAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ninerouter-secrets
+                  key: INITIAL_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ninerouter-secrets
+                  key: JWT_SECRET
+            - name: API_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ninerouter-secrets
+                  key: API_KEY_SECRET
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 20128
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 20128
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "${NINEROUTER_MEMORY_REQUEST}"
+              cpu: "${NINEROUTER_CPU_REQUEST}"
+            limits:
+              memory: "${NINEROUTER_MEMORY_LIMIT}"
+              cpu: "${NINEROUTER_CPU_LIMIT}"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ninerouter-data

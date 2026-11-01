@@ -37,6 +37,7 @@ spec:
         - ${VAULT_UI_HOSTNAME}
         - ${QDRANT_UI_HOSTNAME}
         - ${PHOENIX_HOSTNAME}
+        - ${NINEROUTER_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -169,6 +170,16 @@ spec:
                 name: phoenix
                 port:
                   number: 6006
+    - host: ${NINEROUTER_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ninerouter
+                port:
+                  number: 20128
 ---
 # =========================================================================
 # Ingress with HTTP Basic Auth protection

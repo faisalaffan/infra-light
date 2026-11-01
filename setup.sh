@@ -65,7 +65,28 @@ install_base() {
     log "Installing base packages..."
     if [ "$OS" = "linux" ]; then
         sudo apt-get update -qq
-        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release restic awscli
+        sudo apt-get install -y -qq curl git build-essential ca-certificates gnupg lsb-release restic
+
+        # AWS CLI (Ubuntu 24.04+ dropped deprecated awscli apt package in favor of AWS CLI v2)
+        if ! command -v aws &>/dev/null; then
+            if command -v snap &>/dev/null; then
+                log "Installing aws-cli via snap..."
+                sudo snap install aws-cli --classic 2>/dev/null || true
+            fi
+            if ! command -v aws &>/dev/null; then
+                log "Installing AWS CLI v2 via official installer..."
+                tmp_dir=$(mktemp -d)
+                (
+                    cd "$tmp_dir"
+                    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip"
+                    if command -v unzip &>/dev/null; then
+                        unzip -q awscliv2.zip
+                        sudo ./aws/install --update 2>/dev/null || true
+                    fi
+                ) 2>/dev/null || true
+                rm -rf "$tmp_dir"
+            fi
+        fi
     elif [ "$OS" = "macos" ]; then
         if ! command -v brew &>/dev/null; then
             log "Installing Homebrew..."
@@ -375,6 +396,17 @@ deploy_kustomize() {
     export PHOENIX_MEMORY_LIMIT="${PHOENIX_MEMORY_LIMIT:-2Gi}"
     export PHOENIX_CPU_REQUEST="${PHOENIX_CPU_REQUEST:-250m}"
     export PHOENIX_CPU_LIMIT="${PHOENIX_CPU_LIMIT:-2}"
+    export NINEROUTER_HOSTNAME="${NINEROUTER_HOSTNAME:-9router.${DOMAIN:-faisalaffan.com}}"
+    export NINEROUTER_VERSION="${NINEROUTER_VERSION:-latest}"
+    export NINEROUTER_PORT="${NINEROUTER_PORT:-20128}"
+    export NINEROUTER_DATA_SIZE="${NINEROUTER_DATA_SIZE:-5Gi}"
+    export NINEROUTER_REQUIRE_API_KEY="${NINEROUTER_REQUIRE_API_KEY:-true}"
+    export NINEROUTER_ENABLE_REQUEST_LOGS="${NINEROUTER_ENABLE_REQUEST_LOGS:-true}"
+    export NINEROUTER_OBSERVABILITY_ENABLED="${NINEROUTER_OBSERVABILITY_ENABLED:-true}"
+    export NINEROUTER_MEMORY_REQUEST="${NINEROUTER_MEMORY_REQUEST:-256Mi}"
+    export NINEROUTER_MEMORY_LIMIT="${NINEROUTER_MEMORY_LIMIT:-1Gi}"
+    export NINEROUTER_CPU_REQUEST="${NINEROUTER_CPU_REQUEST:-100m}"
+    export NINEROUTER_CPU_LIMIT="${NINEROUTER_CPU_LIMIT:-1}"
     export MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
     export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
     export B2_ENDPOINT="${B2_ENDPOINT:-https://s3.us-west-004.backblazeb2.com}"
@@ -861,6 +893,7 @@ print_summary() {
     echo "    HashiCorp Vault: vault.infra:8200"
     echo "    Qdrant Vector DB: qdrant.infra:6333 (HTTP/UI) / :6334 (gRPC)"
     echo "    Arize Phoenix:   phoenix.infra:6006 (UI/HTTP) / :4317 (gRPC)"
+    echo "    9Router AI GW:   9router.infra:20128 (UI & API)"
     echo "    ZITADEL IAM:     ${ZITADEL_HOSTNAME:-zitadel.faisalaffan.com} / zitadel.infra:8080"
     echo "    Resolva Backend: reconciliation-backend-svc.resolva:3020"
     echo "    Resolva AI:      reconciliation-ai-svc.resolva:3000"
