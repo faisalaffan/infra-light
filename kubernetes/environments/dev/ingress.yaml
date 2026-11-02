@@ -16,11 +16,11 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - resolva-dev.faisalaffan.com
-        - resolva-api-dev.faisalaffan.com
+        - ${RESOLVA_DEV_FRONTEND_HOSTNAME}
+        - ${RESOLVA_DEV_API_HOSTNAME}
       secretName: resolva-dev-tls
   rules:
-    - host: resolva-dev.faisalaffan.com
+    - host: ${RESOLVA_DEV_FRONTEND_HOSTNAME}
       http:
         paths:
           - path: /api
@@ -29,15 +29,15 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 7820
+                  number: ${RESOLVA_DEV_BACKEND_PORT}
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: reconciliation-frontend-svc
                 port:
-                  number: 5454
-    - host: resolva-api-dev.faisalaffan.com
+                  number: ${RESOLVA_FRONTEND_PORT}
+    - host: ${RESOLVA_DEV_API_HOSTNAME}
       http:
         paths:
           - path: /
@@ -46,7 +46,7 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 7820
+                  number: ${RESOLVA_DEV_BACKEND_PORT}
 ---
 # --- E-Wallet (Dev) Ingress ---
 apiVersion: networking.k8s.io/v1
@@ -62,10 +62,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - ewallet-dev.faisalaffan.com
+        - ${EWALLET_DEV_HOSTNAME}
       secretName: ewallet-dev-tls
   rules:
-    - host: ewallet-dev.faisalaffan.com
+    - host: ${EWALLET_DEV_HOSTNAME}
       http:
         paths:
           - path: /
@@ -90,10 +90,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - wasteco-dev.faisalaffan.com
+        - ${WASTECO_DEV_HOSTNAME}
       secretName: wasteco-dev-tls
   rules:
-    - host: wasteco-dev.faisalaffan.com
+    - host: ${WASTECO_DEV_HOSTNAME}
       http:
         paths:
           - path: /

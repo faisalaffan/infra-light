@@ -381,6 +381,13 @@ deploy_kustomize() {
     export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
     export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_PROD_BACKEND_PORT="${RESOLVA_PROD_BACKEND_PORT:-3020}"
+    export RESOLVA_DEV_API_HOSTNAME="${RESOLVA_DEV_API_HOSTNAME:-resolva-api-dev.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_DEV_FRONTEND_HOSTNAME="${RESOLVA_DEV_FRONTEND_HOSTNAME:-resolva-dev.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_DEV_BACKEND_PORT="${RESOLVA_DEV_BACKEND_PORT:-7820}"
+    export RESOLVA_FRONTEND_PORT="${RESOLVA_FRONTEND_PORT:-5454}"
+    export EWALLET_DEV_HOSTNAME="${EWALLET_DEV_HOSTNAME:-ewallet-dev.${DOMAIN:-faisalaffan.com}}"
+    export WASTECO_DEV_HOSTNAME="${WASTECO_DEV_HOSTNAME:-wasteco-dev.${DOMAIN:-faisalaffan.com}}"
     export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
     export MONGO_EXPRESS_USER="${MONGO_EXPRESS_USER:-admin}"
     export MONGO_EXPRESS_PASSWORD="${MONGO_EXPRESS_PASSWORD:-${MONGODB_ROOT_PASSWORD}}"
@@ -456,7 +463,8 @@ deploy_kustomize() {
 deploy_environments() {
     log "Deploying environment partitions (Dev & Prod)..."
     if [ -d "$ENVIRONMENTS_DIR" ]; then
-        kubectl kustomize "$ENVIRONMENTS_DIR" | kubectl apply -f -
+        local ENV_VARS='$DOMAIN $RESOLVA_FRONTEND_HOSTNAME $RESOLVA_API_HOSTNAME $RESOLVA_PROD_BACKEND_PORT $RESOLVA_DEV_FRONTEND_HOSTNAME $RESOLVA_DEV_API_HOSTNAME $RESOLVA_DEV_BACKEND_PORT $RESOLVA_FRONTEND_PORT $EWALLET_DEV_HOSTNAME $WASTECO_DEV_HOSTNAME'
+        kubectl kustomize "$ENVIRONMENTS_DIR" | envsubst "$ENV_VARS" | kubectl apply -f -
         log "Environments deployed ✓"
     else
         warn "Environments directory not found: $ENVIRONMENTS_DIR"

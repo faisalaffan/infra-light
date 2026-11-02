@@ -21,8 +21,8 @@ spec:
   type: ClusterIP
   ports:
     - name: http
-      port: 3020
-      targetPort: 3020
+      port: ${RESOLVA_PROD_BACKEND_PORT}
+      targetPort: ${RESOLVA_PROD_BACKEND_PORT}
       protocol: TCP
   selector:
     app: reconciliation-backend
@@ -246,11 +246,11 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - resolva.faisalaffan.com
-        - resolva-api.faisalaffan.com
+        - ${RESOLVA_FRONTEND_HOSTNAME}
+        - ${RESOLVA_API_HOSTNAME}
       secretName: resolva-prod-tls
   rules:
-    - host: resolva.faisalaffan.com
+    - host: ${RESOLVA_FRONTEND_HOSTNAME}
       http:
         paths:
           - path: /api
@@ -259,15 +259,15 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 3020
+                  number: ${RESOLVA_PROD_BACKEND_PORT}
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: reconciliation-frontend-svc
                 port:
-                  number: 5454
-    - host: resolva-api.faisalaffan.com
+                  number: ${RESOLVA_FRONTEND_PORT}
+    - host: ${RESOLVA_API_HOSTNAME}
       http:
         paths:
           - path: /
@@ -276,4 +276,4 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 3020
+                  number: ${RESOLVA_PROD_BACKEND_PORT}
