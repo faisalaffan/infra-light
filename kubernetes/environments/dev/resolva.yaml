@@ -21,8 +21,12 @@ spec:
   type: ClusterIP
   ports:
     - name: http
+      port: 7820
+      targetPort: 7820
+      protocol: TCP
+    - name: legacy-http
       port: 3020
-      targetPort: 3020
+      targetPort: 7820
       protocol: TCP
   selector:
     app: reconciliation-backend

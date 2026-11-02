@@ -29,7 +29,7 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 3020
+                  number: 7820
           - path: /
             pathType: Prefix
             backend:
@@ -46,7 +46,7 @@ spec:
               service:
                 name: reconciliation-backend-svc
                 port:
-                  number: 3020
+                  number: 7820
 ---
 # --- E-Wallet (Dev) Ingress ---
 apiVersion: networking.k8s.io/v1
