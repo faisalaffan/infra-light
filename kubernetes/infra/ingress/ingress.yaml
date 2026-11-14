@@ -38,6 +38,9 @@ spec:
         - ${QDRANT_UI_HOSTNAME}
         - ${PHOENIX_HOSTNAME}
         - ${NINEROUTER_HOSTNAME}
+        - ${MANTICORE_HOSTNAME}
+        - ${CAP_HOSTNAME}
+        - ${MEMGRAPH_LAB_HOSTNAME}
       secretName: infra-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
@@ -180,6 +183,36 @@ spec:
                 name: ninerouter
                 port:
                   number: 20128
+    - host: ${MANTICORE_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: manticore
+                port:
+                  number: 9308
+    - host: ${CAP_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cap-web
+                port:
+                  number: 3000
+    - host: ${MEMGRAPH_LAB_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: memgraph-lab
+                port:
+                  number: 3000
 ---
 # =========================================================================
 # Ingress with HTTP Basic Auth protection

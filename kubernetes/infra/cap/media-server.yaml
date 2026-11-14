@@ -1,0 +1,82 @@
+# =========================================================================
+# Cap Media Server — FFmpeg Video & Audio Processing Service
+# Port: 3456 (HTTP API & /health)
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: cap-media-server
+  namespace: infra
+  labels:
+    app: cap-media-server
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3456
+      targetPort: 3456
+  selector:
+    app: cap-media-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cap-media-server
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cap-media-server
+  template:
+    metadata:
+      labels:
+        app: cap-media-server
+    spec:
+      containers:
+        - name: media-server
+          image: ghcr.io/capsoftware/cap-media-server:${CAP_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3456
+              name: http
+          env:
+            - name: PORT
+              value: "3456"
+            - name: MEDIA_SERVER_INTERNAL_MEDIA_HOSTS
+              value: "*"
+            - name: MEDIA_SERVER_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: MEDIA_SERVER_WEBHOOK_SECRET
+          resources:
+            requests:
+              memory: "${CAP_MEDIA_MEMORY_REQUEST}"
+              cpu: "${CAP_MEDIA_CPU_REQUEST}"
+            limits:
+              memory: "${CAP_MEDIA_MEMORY_LIMIT}"
+              cpu: "${CAP_MEDIA_CPU_LIMIT}"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3456
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3456
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+

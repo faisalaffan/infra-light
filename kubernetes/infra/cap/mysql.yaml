@@ -1,0 +1,104 @@
+# =========================================================================
+# Cap MySQL 8.0 — Dedicated Relational Database for Cap Web
+# (Cap uses Drizzle ORM with mysql2 dialect; PostgreSQL is not supported)
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: cap-mysql
+  namespace: infra
+  labels:
+    app: cap-mysql
+spec:
+  type: ClusterIP
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+  selector:
+    app: cap-mysql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cap-mysql
+  namespace: infra
+spec:
+  serviceName: cap-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cap-mysql
+  template:
+    metadata:
+      labels:
+        app: cap-mysql
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: mysql
+          image: mysql:${CAP_MYSQL_VERSION}
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--max_connections=1000"
+            - "--character-set-server=utf8mb4"
+            - "--collation-server=utf8mb4_unicode_ci"
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              value: cap
+            - name: MYSQL_USER
+              value: cap
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: MYSQL_ROOT_PASSWORD
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              memory: "${CAP_MYSQL_MEMORY_REQUEST}"
+              cpu: "${CAP_MYSQL_CPU_REQUEST}"
+            limits:
+              memory: "${CAP_MYSQL_MEMORY_LIMIT}"
+              cpu: "${CAP_MYSQL_CPU_LIMIT}"
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -u cap -p\"$MYSQL_PASSWORD\""]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -u cap -p\"$MYSQL_PASSWORD\""]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: ${CAP_MYSQL_DATA_SIZE}
+

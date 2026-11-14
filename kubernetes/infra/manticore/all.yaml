@@ -1,0 +1,104 @@
+# =========================================================================
+# Manticore Search — High-Performance Full-Text & Vector Search Database
+# Ports:
+#   - 9308: HTTP REST API, Elasticsearch-compatible API, Manticore Buddy & Prometheus /metrics
+#   - 9306: MySQL Protocol (SphinxQL)
+#   - 9312: Binary Protocol (Clustering / Replication)
+# Storage: Local Path Persistent Volume (/var/lib/manticore)
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: manticore
+  namespace: infra
+  labels:
+    app: manticore
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9308
+      targetPort: 9308
+      name: http
+    - port: 9306
+      targetPort: 9306
+      name: mysql
+    - port: 9312
+      targetPort: 9312
+      name: binary
+  selector:
+    app: manticore
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: manticore
+  namespace: infra
+spec:
+  serviceName: manticore
+  replicas: 1
+  selector:
+    matchLabels:
+      app: manticore
+  template:
+    metadata:
+      labels:
+        app: manticore
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: manticore
+          image: manticoresearch/manticore:${MANTICORE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9308
+              name: http
+            - containerPort: 9306
+              name: mysql
+            - containerPort: 9312
+              name: binary
+          env:
+            - name: EXTRA
+              value: "1"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/manticore
+          resources:
+            requests:
+              memory: "${MANTICORE_MEMORY_REQUEST}"
+              cpu: "${MANTICORE_CPU_REQUEST}"
+            limits:
+              memory: "${MANTICORE_MEMORY_LIMIT}"
+              cpu: "${MANTICORE_CPU_LIMIT}"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9308
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9308
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: ${MANTICORE_DATA_SIZE}
+

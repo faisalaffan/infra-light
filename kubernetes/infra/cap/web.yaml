@@ -1,0 +1,191 @@
+# =========================================================================
+# Cap Web — Next.js Screen Recording & Video Sharing Platform
+# Port: 3000 (HTTP UI & API)
+# Uses:
+#   - cap-mysql.infra:3306 (Dedicated MySQL 8.0)
+#   - cap-media-server.infra:3456 (FFmpeg processing)
+#   - minio.infra:9000 / ${S3_HOSTNAME} (Object Storage)
+# =========================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: cap-web
+  namespace: infra
+  labels:
+    app: cap-web
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  selector:
+    app: cap-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cap-web
+  namespace: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cap-web
+  template:
+    metadata:
+      labels:
+        app: cap-web
+    spec:
+      initContainers:
+        - name: wait-for-dependencies
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for cap-mysql..."
+              until nc -z cap-mysql.infra.svc.cluster.local 3306; do
+                sleep 2
+              done
+              echo "cap-mysql is ready."
+              echo "Waiting for minio..."
+              until nc -z minio.infra.svc.cluster.local 9000; do
+                sleep 2
+              done
+              echo "minio is ready."
+      containers:
+        - name: cap-web
+          image: ghcr.io/capsoftware/cap-web:${CAP_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: WEB_URL
+              value: "https://${CAP_HOSTNAME}"
+            - name: NEXTAUTH_URL
+              value: "https://${CAP_HOSTNAME}"
+            - name: CAP_URL
+              value: "https://${CAP_HOSTNAME}"
+            - name: CAP_AWS_BUCKET
+              value: "${CAP_AWS_BUCKET}"
+            - name: CAP_AWS_REGION
+              value: "${CAP_AWS_REGION}"
+            - name: S3_PUBLIC_ENDPOINT
+              value: "https://${S3_HOSTNAME}"
+            - name: S3_INTERNAL_ENDPOINT
+              value: "http://minio.infra.svc.cluster.local:9000"
+            - name: S3_PATH_STYLE
+              value: "true"
+            - name: MEDIA_SERVER_URL
+              value: "http://cap-media-server.infra.svc.cluster.local:3456"
+            - name: MEDIA_SERVER_WEBHOOK_URL
+              value: "http://cap-web.infra.svc.cluster.local:3000"
+            - name: CAP_CHROME_EXTENSION_ID
+              value: '"${CAP_CHROME_EXTENSION_ID}"'
+            - name: CAP_ALLOWED_SIGNUP_DOMAINS
+              value: '"${CAP_ALLOWED_SIGNUP_DOMAINS}"'
+            - name: CAP_BLOCKED_SIGNUP_DOMAINS
+              value: '"${CAP_BLOCKED_SIGNUP_DOMAINS}"'
+            - name: CAP_VIDEOS_DEFAULT_PUBLIC
+              value: '"${CAP_VIDEOS_DEFAULT_PUBLIC}"'
+            - name: RESEND_FROM_DOMAIN
+              value: '"${CAP_RESEND_FROM_DOMAIN}"'
+            - name: ASSEMBLY_BASE_URL
+              value: '"${CAP_ASSEMBLY_BASE_URL}"'
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: DATABASE_URL
+            - name: DATABASE_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: DATABASE_ENCRYPTION_KEY
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: NEXTAUTH_SECRET
+            - name: MEDIA_SERVER_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: MEDIA_SERVER_WEBHOOK_SECRET
+            - name: CAP_AWS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: CAP_AWS_ACCESS_KEY
+            - name: CAP_AWS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: CAP_AWS_SECRET_KEY
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: RESEND_API_KEY
+                  optional: true
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: GOOGLE_CLIENT_ID
+                  optional: true
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: GOOGLE_CLIENT_SECRET
+                  optional: true
+            - name: APPLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: APPLE_CLIENT_ID
+                  optional: true
+            - name: APPLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: APPLE_CLIENT_SECRET
+                  optional: true
+            - name: ASSEMBLY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cap-secrets
+                  key: ASSEMBLY_API_KEY
+                  optional: true
+          resources:
+            requests:
+              memory: "${CAP_WEB_MEMORY_REQUEST}"
+              cpu: "${CAP_WEB_CPU_REQUEST}"
+            limits:
+              memory: "${CAP_WEB_MEMORY_LIMIT}"
+              cpu: "${CAP_WEB_CPU_LIMIT}"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault

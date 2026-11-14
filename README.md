@@ -20,6 +20,7 @@ Host OS (ansible/)                  Cluster (kubernetes/)
                                     └── Infra (first-party)
                                         ├── PostgreSQL 18 (40+ extensions)
                                         ├── MySQL 8.4
+                                        ├── Qdrant · Manticore Search · Arize Phoenix
                                         ├── Grafana + datasources
                                         ├── Loki · Tempo · Pyroscope
                                         ├── VictoriaMetrics · Alloy
@@ -76,6 +77,12 @@ cp .env.example .env
 │   │   ├── alloy/               #     Grafana Alloy collector
 │   │   ├── cloudflared/         #     Cloudflare Tunnel
 │   │   ├── cloudbeaver/         #     Web DB manager
+│   │   ├── qdrant/              #     Vector Database
+│   │   ├── manticore/           #     Full-Text & Vector Search Engine
+│   │   ├── memgraph/            #     Graph Database (MAGE) & Memgraph Lab
+│   │   ├── phoenix/             #     AI Observability & Tracing
+│   │   ├── 9router/             #     Smart AI Gateway & Router
+│   │   ├── cap/                 #     Cap Web Screen Recording & Media Server
 │   │   └── ingress/             #     Routing rules
 │   └── builds/                  #   Custom Docker images
 │       └── postgres/            #     postgres-all image
@@ -125,6 +132,13 @@ docker run -d --name postgres \
 | Redpanda Console | redpanda.faisalaffan.com | 8080 |
 | HashiCorp Vault UI | vault.faisalaffan.com | 8200 |
 | HashiCorp Vault (Tailscale) | vault-faisalaffan.ts.net | 8200 |
+| Qdrant Vector DB | qdrant.infra | 6333 / 6334 |
+| Manticore Search | manticore.infra | 9308 (HTTP) / 9306 (MySQL) |
+| Memgraph DB | memgraph.infra | 7687 (Bolt) / 7444 (Logs) |
+| Memgraph Lab UI | memgraph.faisalaffan.com / memgraph-lab.infra | 3000 |
+| Arize Phoenix | phoenix.infra | 6006 |
+| 9Router AI Gateway | 9router.infra | 20128 |
+| Cap Web | cap.faisalaffan.com / cap-web.infra | 3000 |
 
 ## Contributing
 

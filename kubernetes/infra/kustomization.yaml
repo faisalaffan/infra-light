@@ -22,6 +22,9 @@ resources:
   - qdrant
   - phoenix
   - 9router
+  - manticore
+  - memgraph
+  - cap
   - ingress
   - networkpolicy
   - b2-backup

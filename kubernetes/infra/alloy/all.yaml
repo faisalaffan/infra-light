@@ -348,6 +348,13 @@ data:
       bearer_token    = sys.env("QDRANT_API_KEY")
       forward_to      = [prometheus.remote_write.default.receiver]
     }
+
+    prometheus.scrape "manticore" {
+      metrics_path    = "/metrics"
+      scrape_interval = "15s"
+      targets         = [{"__address__" = "manticore.infra.svc.cluster.local:9308", "job" = "manticore"}]
+      forward_to      = [prometheus.remote_write.default.receiver]
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment

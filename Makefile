@@ -291,6 +291,154 @@ phoenix-help:
 	@echo "  make 9router-logs          Follow live logs from 9Router"
 
 # ============================================================
+# Manticore Search (Full-Text & Vector Search) Management
+# ============================================================
+MANTICORE_POD := manticore-0
+
+.PHONY: manticore-status manticore-health manticore-sql manticore-tables manticore-metrics manticore-logs manticore-help
+
+manticore-status:
+	@echo "--- Manticore Pods & Services ---"
+	@$(KUBECTL) get pods,svc,pvc -n $(NAMESPACE) -l app=manticore
+
+manticore-health:
+	@echo "Checking Manticore Search health..."
+	@IP=$$($(KUBECTL) get svc manticore -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	curl -s "http://$$IP:9308/" || true
+	@echo ""
+
+manticore-metrics:
+	@IP=$$($(KUBECTL) get svc manticore -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	curl -s "http://$$IP:9308/metrics" | head -n 25 || true
+
+manticore-sql:
+	@[ -n "$(QUERY)" ] || { echo "ERROR: set QUERY=\"SQL\" (e.g. make manticore-sql QUERY='SHOW STATUS;')"; exit 1; }
+	$(KUBECTL) exec -n $(NAMESPACE) $(MANTICORE_POD) -- mysql -h 127.0.0.1 -P 9306 -e "$(QUERY)"
+
+manticore-tables:
+	$(KUBECTL) exec -n $(NAMESPACE) $(MANTICORE_POD) -- mysql -h 127.0.0.1 -P 9306 -e "SHOW TABLES;"
+
+manticore-logs:
+	@echo "--- Manticore Search Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=manticore --tail=50 -f
+
+manticore-help:
+	@echo "Manticore Search Engine Management (k3s infra/manticore-0)"
+	@echo ""
+	@echo "  make manticore-status        Show status of Manticore pods, service & PVC"
+	@echo "  make manticore-health        Check cluster info via HTTP API"
+	@echo "  make manticore-metrics       View Prometheus metrics from Manticore Buddy"
+	@echo "  make manticore-tables        List all tables in Manticore"
+	@echo "  make manticore-sql QUERY=... Execute SphinxQL / SQL query"
+	@echo "  make manticore-logs          Follow live logs from Manticore"
+
+# ============================================================
+# Cap Web (Screen Recording & Video Sharing) Management
+# ============================================================
+.PHONY: cap-status cap-health cap-logs cap-media-logs cap-mysql-logs cap-db-shell cap-init-bucket cap-help
+
+cap-status:
+	@echo "--- Cap Pods, Services & PVC ---"
+	@$(KUBECTL) get pods,svc,pvc -n $(NAMESPACE) -l 'app in (cap-web,cap-media-server,cap-mysql)'
+
+cap-health:
+	@echo "Checking Cap Web & Media Server health..."
+	@WEB_IP=$$($(KUBECTL) get svc cap-web -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	echo -n "cap-web (/): "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$WEB_IP:3000/" || true; \
+	MEDIA_IP=$$($(KUBECTL) get svc cap-media-server -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	echo -n "cap-media-server (/health): "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$MEDIA_IP:3456/health" || true
+
+cap-logs:
+	@echo "--- Cap Web Logs (including login OTP codes if Resend is unset) ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=cap-web --tail=50 -f
+
+cap-media-logs:
+	@echo "--- Cap Media Server Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=cap-media-server --tail=50 -f
+
+cap-mysql-logs:
+	@echo "--- Cap MySQL Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=cap-mysql --tail=50 -f
+
+cap-db-shell:
+	@PASS=$$(grep -E "^CAP_MYSQL_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2-); \
+	$(KUBECTL) exec -it -n $(NAMESPACE) cap-mysql-0 -- mysql -u cap -p"$$PASS" cap
+
+cap-init-bucket:
+	@BUCKET=$$(grep -E "^CAP_AWS_BUCKET=" .env 2>/dev/null | cut -d'=' -f2-); \
+	BUCKET=$${BUCKET:-cap}; \
+	$(KUBECTL) exec -n $(NAMESPACE) deploy/minio -- sh -c "mc alias set local http://127.0.0.1:9000 \"\$$MINIO_ROOT_USER\" \"\$$MINIO_ROOT_PASSWORD\" && mc mb local/$$BUCKET --ignore-existing"
+
+cap-help:
+	@echo "Cap Web Screen Recording Management (k3s infra)"
+	@echo ""
+	@echo "  make cap-status        Show status of Cap pods, services & PVC"
+	@echo "  make cap-health        Check HTTP health of cap-web & cap-media-server"
+	@echo "  make cap-logs          Follow cap-web logs (shows login codes if no Resend)"
+	@echo "  make cap-media-logs    Follow cap-media-server logs"
+	@echo "  make cap-mysql-logs    Follow cap-mysql logs"
+	@echo "  make cap-db-shell      Open MySQL shell in cap-mysql-0"
+	@echo "  make cap-init-bucket   Ensure Cap S3 bucket exists in MinIO"
+
+# ============================================================
+# Memgraph (Graph Database + MAGE + Lab UI) Management
+# ============================================================
+MEMGRAPH_POD := memgraph-0
+
+.PHONY: memgraph-status memgraph-health memgraph-cypher memgraph-init-user memgraph-logs memgraph-lab-logs memgraph-help
+
+memgraph-status:
+	@echo "--- Memgraph Pods, Services & PVC ---"
+	@$(KUBECTL) get pods,svc,pvc -n $(NAMESPACE) -l 'app in (memgraph,memgraph-lab)'
+
+memgraph-health:
+	@echo "Checking Memgraph DB & Memgraph Lab health..."
+	@U=$$(grep -E "^MEMGRAPH_USER=" .env 2>/dev/null | cut -d'=' -f2-); \
+	P=$$(grep -E "^MEMGRAPH_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2-); \
+	if [ -n "$$U" ] && [ -n "$$P" ]; then \
+		$(KUBECTL) exec -n $(NAMESPACE) $(MEMGRAPH_POD) -- sh -c "echo 'RETURN 1 AS ok;' | mgconsole --username=$$U --password=$$P" || true; \
+	else \
+		$(KUBECTL) exec -n $(NAMESPACE) $(MEMGRAPH_POD) -- sh -c "echo 'RETURN 1 AS ok;' | mgconsole" || true; \
+	fi
+	@LAB_IP=$$($(KUBECTL) get svc memgraph-lab -n $(NAMESPACE) -o jsonpath='{.spec.clusterIP}'); \
+	echo -n "memgraph-lab (/): "; curl -s -o /dev/null -w "%{http_code}\n" "http://$$LAB_IP:3000/" || true
+
+memgraph-cypher:
+	@[ -n "$(QUERY)" ] || { echo "ERROR: set QUERY=\"CYPHER\" (e.g. make memgraph-cypher QUERY='SHOW STORAGE INFO;')"; exit 1; }
+	@U=$$(grep -E "^MEMGRAPH_USER=" .env 2>/dev/null | cut -d'=' -f2-); \
+	P=$$(grep -E "^MEMGRAPH_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2-); \
+	if [ -n "$$U" ] && [ -n "$$P" ]; then \
+		$(KUBECTL) exec -n $(NAMESPACE) $(MEMGRAPH_POD) -- sh -c "echo \"$(QUERY)\" | mgconsole --username=$$U --password=$$P"; \
+	else \
+		$(KUBECTL) exec -n $(NAMESPACE) $(MEMGRAPH_POD) -- sh -c "echo \"$(QUERY)\" | mgconsole"; \
+	fi
+
+memgraph-init-user:
+	@U=$$(grep -E "^MEMGRAPH_USER=" .env 2>/dev/null | cut -d'=' -f2-); \
+	P=$$(grep -E "^MEMGRAPH_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2-); \
+	[ -n "$$U" ] && [ -n "$$P" ] || { echo "ERROR: set MEMGRAPH_USER and MEMGRAPH_PASSWORD in .env"; exit 1; } ; \
+	echo "Creating Memgraph native user '$$U'..."; \
+	$(KUBECTL) exec -n $(NAMESPACE) $(MEMGRAPH_POD) -- sh -c "echo \"CREATE USER IF NOT EXISTS $$U IDENTIFIED BY '$$P';\" | mgconsole"
+
+memgraph-logs:
+	@echo "--- Memgraph DB Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=memgraph --tail=50 -f
+
+memgraph-lab-logs:
+	@echo "--- Memgraph Lab Logs ---"
+	@$(KUBECTL) logs -n $(NAMESPACE) -l app=memgraph-lab --tail=50 -f
+
+memgraph-help:
+	@echo "Memgraph Graph Database Management (k3s infra/memgraph-0)"
+	@echo ""
+	@echo "  make memgraph-status        Show status of Memgraph pods, services & PVC"
+	@echo "  make memgraph-health        Check Memgraph DB (mgconsole) & Lab UI health"
+	@echo "  make memgraph-cypher QUERY=... Run Cypher query via mgconsole"
+	@echo "  make memgraph-init-user     Create native Memgraph user from .env"
+	@echo "  make memgraph-logs          Follow live logs from Memgraph DB"
+	@echo "  make memgraph-lab-logs      Follow live logs from Memgraph Lab UI"
+
+# ============================================================
 # Backblaze B2 & Restic Disaster Recovery Management
 # ============================================================
 .PHONY: b2-backup b2-snapshots b2-check b2-unlock b2-cron-trigger b2-help
