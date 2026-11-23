@@ -11,7 +11,7 @@
 #  HypoPG · RUM · pglogical · mysql-fdw · Python ML · 40+ extensions
 # =============================================================================
 
-FROM postgres:18-bookworm
+FROM postgres:19-bookworm
 
 # ── OCI Labels ────────────────────────────────────────────────────────────────
 LABEL org.opencontainers.image.title="Postgres-All"
