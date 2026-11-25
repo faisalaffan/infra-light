@@ -1,0 +1,114 @@
+# ============================================================
+# infra-light — Minimal Local Docker Compose
+#
+# Core (always on): postgres, redis
+# Optional (via COMPOSE_PROFILES in .env): minio, mailpit, qdrant, grafana, or "all"
+#
+# Example .env:
+#   COMPOSE_PROFILES=minio,mailpit
+# ============================================================
+
+services:
+  # ── Core Services (Always Enabled) ────────────────────────
+  postgres:
+    image: faisalaffan/postgres-all:latest
+    container_name: infra-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD:?Run make secrets-init first}
+      POSTGRES_DB: ${PG_DATABASE:-postgres}
+      APP_USER: ${PG_APP_USER:-appuser}
+      APP_PASSWORD: ${PG_APP_PASSWORD:?Run make secrets-init first}
+      APP_DB: ${PG_APP_DB:-appdb}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: infra-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Optional Services (Toggle via COMPOSE_PROFILES) ───────
+  minio:
+    image: minio/minio:latest
+    container_name: infra-minio
+    restart: unless-stopped
+    profiles: ["minio", "all"]
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run make secrets-init first}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run make secrets-init first}
+    volumes:
+      - minio_data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: infra-mailpit
+    restart: unless-stopped
+    profiles: ["mailpit", "all"]
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_UI_AUTH: "${MAILPIT_UI_USER:-mailpit_admin}:${MAILPIT_UI_PASSWORD:?Run make secrets-init first}"
+    volumes:
+      - mailpit_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_VERSION:-v1.13.4}
+    container_name: infra-qdrant
+    restart: unless-stopped
+    profiles: ["qdrant", "all"]
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?Run make secrets-init first}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: infra-grafana
+    restart: unless-stopped
+    profiles: ["grafana", "all"]
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-grafana_admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run make secrets-init first}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  mailpit_data:
+  qdrant_data:
+  grafana_data:

@@ -13,11 +13,17 @@
 security-issue.md
 *.secrets.bak*
 
+# OS & Python cache
+.DS_Store
+**/.DS_Store
+*.pyc
+
 # Local and temporary storage
 data/
 logs/
 backups/
 __pycache__/
+**/__pycache__/
 *.retry
 *.log
 
