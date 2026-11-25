@@ -37,8 +37,8 @@ stages:
   - deploy
 
 variables:
-  # Host Node Direct IP Registry (Works for both BuildKit push & K3s containerd pull)
-  INTERNAL_REGISTRY: "139.0.15.90:5000"
+  # In-cluster Registry (or localhost:5000 on node)
+  INTERNAL_REGISTRY: "docker-registry.infra.svc.cluster.local:5000"
   IMAGE_NAME: "$INTERNAL_REGISTRY/apps/$CI_PROJECT_NAME"
   IMAGE_TAG: "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
   IMAGE_LATEST: "$IMAGE_NAME:latest"

@@ -42,11 +42,11 @@ load_dotenv()
 
 API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
 GLOBAL_KEY = os.environ.get("CLOUDFLARE_API_KEY", "").strip()
-CF_EMAIL = os.environ.get("CLOUDFLARE_EMAIL", "faisallionel@gmail.com").strip()
+CF_EMAIL = os.environ.get("CLOUDFLARE_EMAIL", "").strip()
 ZONE_ID = os.environ.get("CLOUDFLARE_ZONE_ID", "").strip()
 ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
-HOMELAB_UUID = os.environ.get("CLOUDFLARE_HOMELAB_TUNNEL_UUID", "005b8e0c-2069-47f0-94b8-12899a9dac50").strip()
-MASTER_RECORD = os.environ.get("CLOUDFLARE_MASTER_ORIGIN_RECORD", "origin.homelab.faisalaffan.com").strip()
+HOMELAB_UUID = os.environ.get("CLOUDFLARE_HOMELAB_TUNNEL_UUID", "").strip()
+MASTER_RECORD = os.environ.get("CLOUDFLARE_MASTER_ORIGIN_RECORD", "origin.homelab.example.com").strip()
 
 def cf_request(method, url, payload=None):
     headers = {

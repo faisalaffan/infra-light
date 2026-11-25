@@ -19,11 +19,19 @@ spec:
       containers:
         - name: monitor
           image: bitnami/kubectl:latest
+          env:
+            - name: DR_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: b2-backup-secrets
+                  key: DR_ADMIN_TOKEN
+            - name: DR_STATUS_URL
+              value: "https://dr.${DOMAIN}/api/status"
           command: ["/bin/sh", "-c"]
           args:
             - |
               while true; do
-                STATUS_JSON="$(curl -s -m 5 -H "X-Admin-Pin: 2026" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)"
+                STATUS_JSON="$(curl -s -m 5 -H "X-Admin-Pin: ${DR_ADMIN_TOKEN}" "${DR_STATUS_URL}" 2>/dev/null || true)"
                 ORIGIN="$(echo "$STATUS_JSON" | grep -o '"currentOrigin":"[^"]*"' | cut -d':' -f2 | tr -d '"' || echo "HOMELAB")"
                 [ -z "$ORIGIN" ] && ORIGIN="HOMELAB"
                 

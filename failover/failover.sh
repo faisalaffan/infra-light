@@ -31,10 +31,10 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export TF_VAR_b2_endpoint="${B2_ENDPOINT:-${TF_VAR_b2_endpoint:-}}"
     export TF_VAR_restic_password="${RESTIC_PASSWORD:-${TF_VAR_restic_password:-}}"
     export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
-    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
+    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-}}"
     export TF_VAR_cloudflare_api_token="${CLOUDFLARE_API_TOKEN:-${TF_VAR_cloudflare_api_token:-}}"
     export TF_VAR_cloudflare_api_key="${CLOUDFLARE_API_KEY:-}"
-    export TF_VAR_cloudflare_email="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
+    export TF_VAR_cloudflare_email="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-}}"
     export TF_VAR_cloudflare_zone_id="${CLOUDFLARE_ZONE_ID:-${TF_VAR_cloudflare_zone_id:-}}"
     export TF_VAR_cloudflare_account_id="${CLOUDFLARE_ACCOUNT_ID:-${TF_VAR_cloudflare_account_id:-}}"
     export TF_VAR_enable_load_balancer="${CLOUDFLARE_ENABLE_LOAD_BALANCER:-${TF_VAR_enable_load_balancer:-false}}"
@@ -42,8 +42,8 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     export TF_VAR_vultr_origin_address="${CLOUDFLARE_VULTR_ORIGIN_ADDRESS:-${CLOUDFLARE_VULTR_TUNNEL_UUID:+$CLOUDFLARE_VULTR_TUNNEL_UUID.cfargotunnel.com}}"
     export TF_VAR_tencent_origin_address="${CLOUDFLARE_TENCENT_ORIGIN_ADDRESS:-${CLOUDFLARE_TENCENT_TUNNEL_UUID:+$CLOUDFLARE_TENCENT_TUNNEL_UUID.cfargotunnel.com}}"
     export TF_VAR_cloudflare_standby_tunnel_token="${CLOUDFLARE_STANDBY_TUNNEL_TOKEN:-}"
-    export TF_VAR_prod_record_name="${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
-    export TF_VAR_drill_record_name="drill.${FAILOVER_DOMAIN:-homelab.faisalaffan.com}"
+    export TF_VAR_prod_record_name="${FAILOVER_DOMAIN:-homelab.example.com}"
+    export TF_VAR_drill_record_name="drill.${FAILOVER_DOMAIN:-homelab.example.com}"
     export TF_VAR_ssh_public_key="${SSH_PUBLIC_KEY:-${SSH_KEY:-$(cat ~/.ssh/id_rsa.pub 2>/dev/null || cat ~/.ssh/id_ed25519.pub 2>/dev/null || echo '')}}"
 
     # Compute Instance Plans & Sizing (configured via .env)
@@ -61,7 +61,7 @@ if [[ -f "$ROOT_ENV_FILE" ]]; then
     if [[ -n "${FAILOVER_K3S_VERSION:-${K3S_VERSION:-}}" ]]; then
         export TF_VAR_k3s_version="${FAILOVER_K3S_VERSION:-${K3S_VERSION:-v1.30.2+k3s1}}"
     fi
-    export TF_VAR_k3s_token="${K3S_TOKEN:-k3s-local-dev-token-2026}"
+    export TF_VAR_k3s_token="${K3S_TOKEN:?K3S_TOKEN must be set in .env}"
 fi
 
 print_help() {
@@ -140,7 +140,7 @@ if [[ "$ACTION" == "worker-deploy" || "$ACTION" == "deploy-worker" ]]; then
     echo "📱 Deploying Disaster Recovery Mobile Dashboard (Worker)"
     echo "=========================================================="
     cd "$WORKER_DIR"
-    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-faisallionel@gmail.com}}"
+    export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${GIT_EMAIL:-}}"
     export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-}"
     export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}"
 

@@ -58,14 +58,14 @@ spec:
             address = "[::]:8200"
             cluster_address = "[::]:8201"
             telemetry {
-              unauthenticated_metrics_access = true
+              unauthenticated_metrics_access = false
             }
           }
 
           telemetry {
             prometheus_retention_time = "30s"
             disable_hostname = true
-            unauthenticated_metrics_access = true
+            unauthenticated_metrics_access = false
           }
 
           storage "file" {

@@ -85,7 +85,10 @@ spec:
             - name: MP_MAX_MESSAGES
               value: "5000"
             - name: MP_UI_AUTH
-              value: "${MAILPIT_UI_AUTH}"
+              valueFrom:
+                secretKeyRef:
+                  name: infra-secrets
+                  key: MAILPIT_UI_AUTH
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

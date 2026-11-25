@@ -105,9 +105,9 @@ data:
         type: postgres
         uid: postgresql
         url: postgres.infra.svc:5432
-        user: postgres
+        user: grafana_reader
         secureJsonData:
-          password: ${PG_SUPERUSER_PASSWORD}
+          password: ${GRAFANA_DB_PASSWORD}
         jsonData:
           database: postgres
           sslmode: disable
@@ -163,6 +163,14 @@ spec:
           env:
             - name: GF_INSTALL_PLUGINS
               value: "redis-datasource"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_SECURITY_DISABLE_GRAVATAR
+              value: "true"
+            - name: GF_SECURITY_COOKIE_SECURE
+              value: "true"
           envFrom:
             - secretRef:
                 name: infra-secrets

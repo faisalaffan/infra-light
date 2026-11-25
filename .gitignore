@@ -1,11 +1,17 @@
 # Environment variables
 .env
 **/.env
+.env.bak*
+**/.env.bak*
 .env.local
 **/.env.local
 .env.json
 **/.env.json
 !**/.env.example
+
+# Security incident reports & rotation backups
+security-issue.md
+*.secrets.bak*
 
 # Local and temporary storage
 data/
