@@ -4,7 +4,6 @@ namespace: infra
 resources:
   - configmap.yaml
   - secrets.yaml
-  - minio.yaml
   - martin.yaml
   - titiler.yaml
   - geoserver.yaml

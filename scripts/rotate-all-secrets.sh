@@ -160,7 +160,7 @@ kubectl delete clusterrolebinding woodpecker-ci-admin 2>/dev/null || true
 
 # 8. Restart affected workloads to pick up new secrets
 log "Restarting affected deployments & statefulsets..."
-for deploy in grafana mailpit mongo-express woodpecker-server woodpecker-agent dr-monitor cap-web; do
+for deploy in grafana mailpit mongo-express minio woodpecker-server woodpecker-agent dr-monitor cap-web; do
     kubectl rollout restart deployment/"$deploy" -n infra 2>/dev/null || true
 done
 for sts in qdrant memgraph postgres; do

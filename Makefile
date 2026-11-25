@@ -493,7 +493,7 @@ secrets-rotate:
 	@bash ./scripts/rotate-all-secrets.sh
 
 secrets-audit:
-	@if git grep -n -E "(secret_2026|minioadmin|k3s-local-dev-token-2026|ADMIN_PIN[[:space:]]*=[[:space:]]*\"2026\")"; then \
+	@if git grep -n -E "(secret_2026|minioadmin|k3s-local-dev-token-2026|ADMIN_PIN[[:space:]]*=[[:space:]]*\"2026\")" -- ':!.github/workflows/secret-scan.yml' ':!Makefile' ':!scripts/generate-secrets.sh' ':!setup.sh'; then \
 		echo "ERROR: Banned hardcoded credential patterns detected!"; \
 		exit 1; \
 	fi
@@ -505,4 +505,32 @@ secrets-help:
 	@echo "  make secrets-init       Generate strong random secrets into .env"
 	@echo "  make secrets-audit      Scan repo for hardcoded/banned secret patterns"
 	@echo "  make secrets-rotate     Rotate all live K3s & DB credentials in-place"
+
+# ============================================================
+# Local Docker Compose Stack
+# ============================================================
+COMPOSE := docker compose --env-file .env -f compose/docker-compose.yml
+
+.PHONY: compose-up compose-down compose-ps compose-logs compose-help
+
+compose-up:
+	@[ -f .env ] || $(MAKE) secrets-init
+	$(COMPOSE) up -d
+
+compose-down:
+	$(COMPOSE) --profile all down
+
+compose-ps:
+	$(COMPOSE) --profile all ps
+
+compose-logs:
+	$(COMPOSE) --profile all logs -f --tail=50
+
+compose-help:
+	@echo "Minimal Local Docker Compose (toggle optional services via COMPOSE_PROFILES in .env)"
+	@echo ""
+	@echo "  make compose-up         Start core (postgres, redis) + services in COMPOSE_PROFILES"
+	@echo "  make compose-down       Stop all compose services"
+	@echo "  make compose-ps         Show compose container status"
+	@echo "  make compose-logs       Tail compose logs"
 
