@@ -33,7 +33,7 @@ else
 fi
 
 K3S_VERSION="${K3S_VERSION:-v1.30.2+k3s1}"
-K3S_TOKEN="${K3S_TOKEN:-k3s-local-dev-token-2026}"
+K3S_TOKEN="${K3S_TOKEN:?K3S_TOKEN must be set in /etc/failover/env}"
 B2_ENDPOINT="${B2_ENDPOINT:-}"
 B2_BUCKET="${B2_BUCKET:-}"
 B2_PREFIX="${B2_PREFIX:-k3s-snapshots}"

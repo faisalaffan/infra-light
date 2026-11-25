@@ -57,6 +57,17 @@ spec:
           args:
             - "--also-log-to-stderr=true"
             - "--telemetry-enabled=false"
+          env:
+            - name: MEMGRAPH_USER
+              valueFrom:
+                secretKeyRef:
+                  name: memgraph-secrets
+                  key: MEMGRAPH_USER
+            - name: MEMGRAPH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: memgraph-secrets
+                  key: MEMGRAPH_PASSWORD
           ports:
             - containerPort: 7687
               name: bolt
@@ -176,3 +187,13 @@ spec:
               drop: [ALL]
             seccompProfile:
               type: RuntimeDefault
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: memgraph-secrets
+  namespace: infra
+type: Opaque
+stringData:
+  MEMGRAPH_USER: "${MEMGRAPH_USER}"
+  MEMGRAPH_PASSWORD: "${MEMGRAPH_PASSWORD}"

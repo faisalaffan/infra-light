@@ -158,10 +158,14 @@ verify_active_origin_guard() {
     fi
 
     local status_json=""
-    if command -v curl &>/dev/null; then
-        status_json=$(curl -sf -m 8 -H "X-Admin-Pin: ${ADMIN_PIN:-2026}" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)
-    elif command -v wget &>/dev/null; then
-        status_json=$(wget -qO- -T 8 --header="X-Admin-Pin: ${ADMIN_PIN:-2026}" "https://dr.faisalaffan.com/api/status" 2>/dev/null || true)
+    local dr_token="${DR_ADMIN_TOKEN:-}"
+    local dr_url="https://dr.${DOMAIN:-example.com}/api/status"
+    if [ -n "$dr_token" ]; then
+        if command -v curl &>/dev/null; then
+            status_json=$(curl -sf -m 8 -H "X-Admin-Pin: ${dr_token}" "$dr_url" 2>/dev/null || true)
+        elif command -v wget &>/dev/null; then
+            status_json=$(wget -qO- -T 8 --header="X-Admin-Pin: ${dr_token}" "$dr_url" 2>/dev/null || true)
+        fi
     fi
 
     if [[ -n "$status_json" ]]; then

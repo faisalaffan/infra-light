@@ -9,7 +9,7 @@ set -euo pipefail
 POSTGRES_POD="${POSTGRES_POD:-postgres-0}"
 POSTGRES_NAMESPACE="${POSTGRES_NAMESPACE:-infra}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres_super_secret_2026}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
 
 echo "🔄 Synchronizing foreign data wrappers in ${POSTGRES_POD} (${POSTGRES_NAMESPACE})..."
 

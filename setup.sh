@@ -19,12 +19,58 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     set -a; source "$SCRIPT_DIR/.env"; set +a
     log "Loaded .env — DOMAIN=${DOMAIN:-unset}"
 else
-    warn "No .env found, using defaults"
+    err "No .env found! Run: cp .env.example .env && make secrets-init"
 fi
 
+# ------------------------------------------------------------------
+# Fail-Fast Secret Validator — refuses deploy on weak/placeholder secrets
+# ------------------------------------------------------------------
+validate_secrets() {
+    log "Validating .env secrets (fail-fast)..."
+    local env_file="$SCRIPT_DIR/.env"
+    [ -f "$env_file" ] || err ".env missing at $env_file"
+    chmod 600 "$env_file" 2>/dev/null || true
+
+    local required_vars=(
+        K3S_TOKEN
+        INFRA_BASIC_AUTH_PASSWORD
+        PG_SUPERUSER_PASSWORD
+        PG_APP_PASSWORD
+        MONGODB_ROOT_PASSWORD
+        MONGO_EXPRESS_PASSWORD
+        REDIS_COMMANDER_PASSWORD
+        MINIO_ROOT_USER
+        MINIO_ROOT_PASSWORD
+        EMQX_DASHBOARD_PASSWORD
+        GRAFANA_ADMIN_PASSWORD
+        GRAFANA_DB_PASSWORD
+        QDRANT_API_KEY
+        MAILPIT_UI_PASSWORD
+        WOODPECKER_DB_PASSWORD
+        WOODPECKER_AGENT_SECRET
+        GEOSTACK_POSTGRES_PASSWORD
+        GEOSTACK_JWT_SECRET
+        DR_ADMIN_TOKEN
+    )
+
+    local failed=false
+    for var in "${required_vars[@]}"; do
+        local val="${!var:-}"
+        if [ -z "$val" ] || [[ "$val" == CHANGE_ME* ]] || [[ "$val" == generate_* ]] || [[ "$val" == *"_secret_2026"* ]] || [[ "$val" == "minioadmin" ]] || [[ "$val" == "k3s-local-dev-token-2026" ]]; then
+            warn "Invalid or placeholder secret detected: $var"
+            failed=true
+        fi
+    done
+
+    if [ "$failed" = true ]; then
+        err "Secret validation failed! Run './scripts/generate-secrets.sh' (or 'make secrets-init') and configure required tokens before deploying."
+    fi
+    log "All required secrets validated ✓"
+}
+
 SSH_KEY="${SSH_KEY_PATH:-$HOME/.ssh/id_rsa}"
-GIT_EMAIL="${GIT_EMAIL:-faisallionel@gmail.com}"
-GIT_NAME="${GIT_NAME:-Faisal Affan}"
+GIT_EMAIL="${GIT_EMAIL:-admin@example.com}"
+GIT_NAME="${GIT_NAME:-Infra Admin}"
 TOOLBOX_VERSION="${TOOLBOX_VERSION:-1.4.0}"
 ANSIBLE_DIR="${SCRIPT_DIR}/ansible"
 KUSTOMIZE_DIR="${SCRIPT_DIR}/kubernetes/infra"
@@ -191,11 +237,11 @@ setup_vault() {
 # ============================================================
 
 vault_tailscale_authkey: "${TAILSCALE_AUTHKEY:-skip-tailscale-local}"
-vault_cf_tunnel_token: "${CF_TUNNEL_TOKEN:-}"
-vault_k3s_token: "${K3S_TOKEN:-k3s-local-dev-token-2026}"
-vault_pg_superuser_password: "${PG_SUPERUSER_PASSWORD:-postgres_super_secret_2026}"
-vault_pg_app_password: "${PG_APP_PASSWORD:-appuser_secret_2026}"
-vault_grafana_admin_password: "${GRAFANA_ADMIN_PASSWORD:-admin_secret_2026}"
+vault_cf_tunnel_token: "${CF_TUNNEL_TOKEN:?CF_TUNNEL_TOKEN must be set in .env}"
+vault_k3s_token: "${K3S_TOKEN:?K3S_TOKEN must be set in .env}"
+vault_pg_superuser_password: "${PG_SUPERUSER_PASSWORD:?PG_SUPERUSER_PASSWORD must be set in .env}"
+vault_pg_app_password: "${PG_APP_PASSWORD:?PG_APP_PASSWORD must be set in .env}"
+vault_grafana_admin_password: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env}"
 VAULTEOF
     log "vault.yml generated"
 }
@@ -250,8 +296,8 @@ bootstrap_k3s() {
 deploy_helmcharts() {
     log "Deploying third-party services (HelmChart)..."
 
-    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-admin}"
-    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:-redis_admin_secret_2026!}"
+    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-redis_admin}"
+    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:?REDIS_COMMANDER_PASSWORD must be set in .env}"
 
     # Ensure required namespaces exist (Tailscale Operator needs it)
     kubectl create namespace tailscale 2>/dev/null || true
@@ -359,9 +405,9 @@ deploy_kustomize() {
             --dry-run=client -o yaml | kubectl apply -f -
     fi
 
-    # --- infra-basic-auth secret (for registry-ui, redpanda-console, nats) ---
-    export INFRA_BASIC_AUTH_USER="${INFRA_BASIC_AUTH_USER:-admin}"
-    export INFRA_BASIC_AUTH_PASSWORD="${INFRA_BASIC_AUTH_PASSWORD:-infra_admin_secret_2026!}"
+    # --- infra-basic-auth secret (for internal/non-native-auth UIs) ---
+    export INFRA_BASIC_AUTH_USER="${INFRA_BASIC_AUTH_USER:-infra_admin}"
+    export INFRA_BASIC_AUTH_PASSWORD="${INFRA_BASIC_AUTH_PASSWORD:?INFRA_BASIC_AUTH_PASSWORD must be set in .env}"
     local auth_htpasswd
     auth_htpasswd=$(printf "%s:%s\n" "$INFRA_BASIC_AUTH_USER" "$(openssl passwd -apr1 "$INFRA_BASIC_AUTH_PASSWORD")")
     kubectl create secret generic infra-basic-auth -n infra \
@@ -370,33 +416,33 @@ deploy_kustomize() {
     log "infra-basic-auth secret configured ✓"
 
     # Default derivatif
-    export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:-faisalaffan.com}}"
-    export CLOUDBEAVER_HOSTNAME="${CLOUDBEAVER_HOSTNAME:-db.${DOMAIN:-faisalaffan.com}}"
-    export MINIO_CONSOLE_HOSTNAME="${MINIO_CONSOLE_HOSTNAME:-minio.${DOMAIN:-faisalaffan.com}}"
-    export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN:-faisalaffan.com}}"
-    export EXCALIDRAW_HOSTNAME="${EXCALIDRAW_HOSTNAME:-excalidraw.${DOMAIN:-faisalaffan.com}}"
-    export REDIS_UI_HOSTNAME="${REDIS_UI_HOSTNAME:-redis-ui.${DOMAIN:-faisalaffan.com}}"
-    export REDPANDA_CONSOLE_HOSTNAME="${REDPANDA_CONSOLE_HOSTNAME:-redpanda.${DOMAIN:-faisalaffan.com}}"
-    export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN:-faisalaffan.com}}"
-    export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN:-faisalaffan.com}}"
-    export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN:-faisalaffan.com}}"
-    export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN:-faisalaffan.com}}"
+    export GRAFANA_DOMAIN="${GRAFANA_DOMAIN:-grafana.${DOMAIN:?DOMAIN must be set}}"
+    export CLOUDBEAVER_HOSTNAME="${CLOUDBEAVER_HOSTNAME:-db.${DOMAIN}}"
+    export MINIO_CONSOLE_HOSTNAME="${MINIO_CONSOLE_HOSTNAME:-minio.${DOMAIN}}"
+    export S3_HOSTNAME="${S3_HOSTNAME:-s3.${DOMAIN}}"
+    export EXCALIDRAW_HOSTNAME="${EXCALIDRAW_HOSTNAME:-excalidraw.${DOMAIN}}"
+    export REDIS_UI_HOSTNAME="${REDIS_UI_HOSTNAME:-redis-ui.${DOMAIN}}"
+    export REDPANDA_CONSOLE_HOSTNAME="${REDPANDA_CONSOLE_HOSTNAME:-redpanda.${DOMAIN}}"
+    export VAULT_UI_HOSTNAME="${VAULT_UI_HOSTNAME:-vault.${DOMAIN}}"
+    export REGISTRY_UI_HOSTNAME="${REGISTRY_UI_HOSTNAME:-registry.${DOMAIN}}"
+    export RESOLVA_API_HOSTNAME="${RESOLVA_API_HOSTNAME:-resolva-api.${DOMAIN}}"
+    export RESOLVA_FRONTEND_HOSTNAME="${RESOLVA_FRONTEND_HOSTNAME:-resolva.${DOMAIN}}"
     export RESOLVA_PROD_BACKEND_PORT="${RESOLVA_PROD_BACKEND_PORT:-3020}"
-    export RESOLVA_DEV_API_HOSTNAME="${RESOLVA_DEV_API_HOSTNAME:-resolva-api-dev.${DOMAIN:-faisalaffan.com}}"
-    export RESOLVA_DEV_FRONTEND_HOSTNAME="${RESOLVA_DEV_FRONTEND_HOSTNAME:-resolva-dev.${DOMAIN:-faisalaffan.com}}"
+    export RESOLVA_DEV_API_HOSTNAME="${RESOLVA_DEV_API_HOSTNAME:-resolva-api-dev.${DOMAIN}}"
+    export RESOLVA_DEV_FRONTEND_HOSTNAME="${RESOLVA_DEV_FRONTEND_HOSTNAME:-resolva-dev.${DOMAIN}}"
     export RESOLVA_DEV_BACKEND_PORT="${RESOLVA_DEV_BACKEND_PORT:-7820}"
     export RESOLVA_FRONTEND_PORT="${RESOLVA_FRONTEND_PORT:-5454}"
-    export EWALLET_DEV_HOSTNAME="${EWALLET_DEV_HOSTNAME:-ewallet-dev.${DOMAIN:-faisalaffan.com}}"
-    export WASTECO_DEV_HOSTNAME="${WASTECO_DEV_HOSTNAME:-wasteco-dev.${DOMAIN:-faisalaffan.com}}"
-    export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN:-faisalaffan.com}}"
-    export MONGO_EXPRESS_USER="${MONGO_EXPRESS_USER:-admin}"
-    export MONGO_EXPRESS_PASSWORD="${MONGO_EXPRESS_PASSWORD:-${MONGODB_ROOT_PASSWORD}}"
-    export MAILPIT_UI_USER="${MAILPIT_UI_USER:-admin}"
-    export MAILPIT_UI_PASSWORD="${MAILPIT_UI_PASSWORD:-mailpit_secret_2026!}"
+    export EWALLET_DEV_HOSTNAME="${EWALLET_DEV_HOSTNAME:-ewallet-dev.${DOMAIN}}"
+    export WASTECO_DEV_HOSTNAME="${WASTECO_DEV_HOSTNAME:-wasteco-dev.${DOMAIN}}"
+    export QDRANT_UI_HOSTNAME="${QDRANT_UI_HOSTNAME:-qdrant.${DOMAIN}}"
+    export MONGO_EXPRESS_USER="${MONGO_EXPRESS_USER:-mongo_admin}"
+    export MONGO_EXPRESS_PASSWORD="${MONGO_EXPRESS_PASSWORD:?MONGO_EXPRESS_PASSWORD must be set in .env}"
+    export MAILPIT_UI_USER="${MAILPIT_UI_USER:-mailpit_admin}"
+    export MAILPIT_UI_PASSWORD="${MAILPIT_UI_PASSWORD:?MAILPIT_UI_PASSWORD must be set in .env}"
     export MAILPIT_UI_AUTH="${MAILPIT_UI_USER}:${MAILPIT_UI_PASSWORD}"
-    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-admin}"
-    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:-redis_admin_secret_2026!}"
-    export PHOENIX_HOSTNAME="${PHOENIX_HOSTNAME:-phoenix.${DOMAIN:-faisalaffan.com}}"
+    export REDIS_COMMANDER_USER="${REDIS_COMMANDER_USER:-redis_admin}"
+    export REDIS_COMMANDER_PASSWORD="${REDIS_COMMANDER_PASSWORD:?REDIS_COMMANDER_PASSWORD must be set in .env}"
+    export PHOENIX_HOSTNAME="${PHOENIX_HOSTNAME:-phoenix.${DOMAIN}}"
     export PHOENIX_VERSION="${PHOENIX_VERSION:-latest}"
     export PHOENIX_DATA_SIZE="${PHOENIX_DATA_SIZE:-10Gi}"
     export PHOENIX_MEMORY_REQUEST="${PHOENIX_MEMORY_REQUEST:-512Mi}"
@@ -424,8 +470,8 @@ deploy_kustomize() {
     export MEMGRAPH_VERSION="${MEMGRAPH_VERSION:-3.14.0}"
     export MEMGRAPH_LAB_VERSION="${MEMGRAPH_LAB_VERSION:-3.14.2}"
     export MEMGRAPH_LAB_HOSTNAME="${MEMGRAPH_LAB_HOSTNAME:-memgraph.${DOMAIN:-faisalaffan.com}}"
-    export MEMGRAPH_USER="${MEMGRAPH_USER:-admin}"
-    export MEMGRAPH_PASSWORD="${MEMGRAPH_PASSWORD:-memgraph_admin_2026!}"
+    export MEMGRAPH_USER="${MEMGRAPH_USER:-memgraph_admin}"
+    export MEMGRAPH_PASSWORD="${MEMGRAPH_PASSWORD:?MEMGRAPH_PASSWORD must be set in .env}"
     export MEMGRAPH_DATA_SIZE="${MEMGRAPH_DATA_SIZE:-10Gi}"
     export MEMGRAPH_MEMORY_REQUEST="${MEMGRAPH_MEMORY_REQUEST:-512Mi}"
     export MEMGRAPH_MEMORY_LIMIT="${MEMGRAPH_MEMORY_LIMIT:-4Gi}"
@@ -465,8 +511,8 @@ deploy_kustomize() {
     export CAP_APPLE_CLIENT_SECRET="${CAP_APPLE_CLIENT_SECRET:-}"
     export CAP_ASSEMBLY_API_KEY="${CAP_ASSEMBLY_API_KEY:-}"
     export CAP_ASSEMBLY_BASE_URL="${CAP_ASSEMBLY_BASE_URL:-}"
-    export MINIO_ROOT_USER="${MINIO_ROOT_USER:-minioadmin}"
-    export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-minioadmin}"
+    export MINIO_ROOT_USER="${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set in .env}"
+    export MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set in .env}"
     export B2_ENDPOINT="${B2_ENDPOINT:-https://s3.us-west-004.backblazeb2.com}"
     export B2_BUCKET="${B2_BUCKET:-my-homelab-k3s-backups}"
     export B2_PREFIX="${B2_PREFIX:-k3s-snapshots}"
@@ -711,7 +757,7 @@ setup_k3s_registries() {
     if [ ! -f "$registries_file" ] || ! grep -q "docker-registry.infra.svc.cluster.local" "$registries_file" 2>/dev/null; then
         log "Configuring K3s local container registry mirror in $registries_file..."
         sudo mkdir -p /etc/rancher/k3s
-        local public_ip="${NODE_PUBLIC_IP:-139.0.15.90}"
+        local public_ip="${NODE_PUBLIC_IP:-127.0.0.1}"
         cat << EOF | sudo tee "$registries_file" >/dev/null
 mirrors:
   "${public_ip}:5000":
@@ -744,8 +790,10 @@ fix_ufw_ports() {
         return
     fi
     if command -v ufw &>/dev/null && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-        log "Configuring UFW firewall rules for Tailscale & K3s..."
-        sudo ufw allow 6443/tcp >/dev/null 2>&1 || true
+        log "Configuring UFW firewall rules for Tailscale & K3s (least-privilege)..."
+        # Revoke any legacy public 6443 rule and restrict K3s API to tailscale0 only
+        sudo ufw delete allow 6443/tcp >/dev/null 2>&1 || true
+        sudo ufw allow in on tailscale0 to any port 6443 proto tcp >/dev/null 2>&1 || true
         sudo ufw allow in on tailscale0 >/dev/null 2>&1 || true
         sudo ufw allow out on tailscale0 >/dev/null 2>&1 || true
         sudo ufw allow in on cni0 >/dev/null 2>&1 || true
@@ -1014,6 +1062,7 @@ main() {
     fix_kubectl_wrapper
     install_ansible
     setup_ssh
+    validate_secrets
     setup_vault
 
     if [ "${SUDO_SKIP:-false}" = true ]; then

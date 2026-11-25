@@ -53,7 +53,10 @@ spec:
               name: grpc
           env:
             - name: QDRANT__SERVICE__API_KEY
-              value: "${QDRANT_API_KEY}"
+              valueFrom:
+                secretKeyRef:
+                  name: qdrant-secrets
+                  key: QDRANT_API_KEY
             - name: QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS
               value: "0"
             - name: QDRANT__SERVICE__ENABLE_STATIC_CONTENT
@@ -101,3 +104,12 @@ spec:
         resources:
           requests:
             storage: ${QDRANT_DATA_SIZE}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: qdrant-secrets
+  namespace: infra
+type: Opaque
+stringData:
+  QDRANT_API_KEY: "${QDRANT_API_KEY}"

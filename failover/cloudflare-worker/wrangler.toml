@@ -3,11 +3,12 @@ main = "./.output/server/index.mjs"
 compatibility_date = "2026-10-24"
 compatibility_flags = ["nodejs_compat"]
 
-workers_dev = true
-preview_urls = true
+# Disable public workers.dev and preview URLs to prevent edge policy bypass
+workers_dev = false
+preview_urls = false
 
 routes = [
-  { pattern = "dr.faisalaffan.com", custom_domain = true }
+  { pattern = "dr.example.com", custom_domain = true }
 ]
 
 [assets]
@@ -15,12 +16,14 @@ directory = "./.output/public"
 binding = "ASSETS"
 
 [vars]
-CLOUDFLARE_ZONE_ID = "6e31dd491d4cdeab97e4e3ec76b61a28"
-CLOUDFLARE_MASTER_ORIGIN_RECORD = "origin.homelab.faisalaffan.com"
-CLOUDFLARE_HOMELAB_TUNNEL_UUID = "005b8e0c-2069-47f0-94b8-12899a9dac50"
-CLOUDFLARE_TENCENT_TUNNEL_UUID = "bb50ff1e-4879-49d3-b4ad-7817c1f0caa4"
-CLOUDFLARE_EMAIL = "faisallionel@gmail.com"
-GITHUB_REPO = "faisalaffan/infra-light"
-ADMIN_PIN = "2026"
+# Non-secret configuration only.
+# Sensitive secrets (ADMIN_PIN, CLOUDFLARE_API_KEY/TOKEN, TENCENTCLOUD_SECRET_*, GITHUB_PAT)
+# MUST be injected via `wrangler secret put <NAME>`.
+CLOUDFLARE_ZONE_ID = "CHANGE_ME_CF_ZONE_ID"
+CLOUDFLARE_MASTER_ORIGIN_RECORD = "origin.homelab.example.com"
+CLOUDFLARE_HOMELAB_TUNNEL_UUID = "CHANGE_ME_HOMELAB_TUNNEL_UUID"
+CLOUDFLARE_TENCENT_TUNNEL_UUID = "CHANGE_ME_TENCENT_TUNNEL_UUID"
+CLOUDFLARE_EMAIL = "admin@example.com"
+GITHUB_REPO = "example/infra-light"
 TENCENTCLOUD_REGION = "ap-singapore"
-TENCENT_INSTANCE_ID = "ins-nlgdknnm"
+TENCENT_INSTANCE_ID = "CHANGE_ME_TENCENT_INSTANCE_ID"

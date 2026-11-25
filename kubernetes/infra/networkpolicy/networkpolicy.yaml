@@ -45,6 +45,4 @@ spec:
             cidr: "${K3S_POD_CIDR}"
         - ipBlock:
             cidr: "${K3S_SERVICE_CIDR}"
-        - ipBlock:
-            cidr: "${NODE_PUBLIC_SUBNET}"
 

@@ -56,7 +56,6 @@ variable "k3s_version" {
 variable "k3s_token" {
   description = "K3s cluster token"
   type        = string
-  default     = "k3s-local-dev-token-2026"
   sensitive   = true
 }
 

@@ -481,3 +481,28 @@ b2-help:
 	@echo "  make b2-check           Verify repository cryptographic integrity"
 	@echo "  make b2-cron-trigger    Trigger Kubernetes CronJob k3s-b2-backup"
 
+# ============================================================
+# Security & Secret Management
+# ============================================================
+.PHONY: secrets-init secrets-audit secrets-rotate secrets-help
+
+secrets-init:
+	@bash ./scripts/generate-secrets.sh
+
+secrets-rotate:
+	@bash ./scripts/rotate-all-secrets.sh
+
+secrets-audit:
+	@if git grep -n -E "(secret_2026|minioadmin|k3s-local-dev-token-2026|ADMIN_PIN[[:space:]]*=[[:space:]]*\"2026\")"; then \
+		echo "ERROR: Banned hardcoded credential patterns detected!"; \
+		exit 1; \
+	fi
+	@echo "✓ Secret audit passed (0 banned patterns)"
+
+secrets-help:
+	@echo "Security & Secret Management"
+	@echo ""
+	@echo "  make secrets-init       Generate strong random secrets into .env"
+	@echo "  make secrets-audit      Scan repo for hardcoded/banned secret patterns"
+	@echo "  make secrets-rotate     Rotate all live K3s & DB credentials in-place"
+

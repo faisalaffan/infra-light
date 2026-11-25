@@ -62,6 +62,7 @@ spec:
             - name: registry
               containerPort: 5000
               hostPort: 5000
+              hostIP: 127.0.0.1
               protocol: TCP
           volumeMounts:
             - name: registry-storage

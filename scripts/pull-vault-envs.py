@@ -25,7 +25,7 @@ def resolve_vault_token():
             pass
     return ""
 
-VAULT_ADDR = os.getenv("VAULT_ADDR", "http://10.43.223.184:8200").rstrip("/")
+VAULT_ADDR = os.getenv("VAULT_ADDR", "http://vault.infra.svc.cluster.local:8200").rstrip("/")
 VAULT_TOKEN = resolve_vault_token()
 OUTPUT_BASE = os.getenv("OUTPUT_DIR", "/home/it-helpdesk/vault_envs")
 

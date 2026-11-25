@@ -11,7 +11,7 @@ spec:
   valuesContent: |-
     controller:
       hostPort:
-        enabled: true
+        enabled: false
       service:
         type: ClusterIP
       config:

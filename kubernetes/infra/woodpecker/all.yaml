@@ -39,7 +39,7 @@ metadata:
   namespace: infra
 data:
   WOODPECKER_HOST: "https://${WOODPECKER_SERVER_HOST}"
-  WOODPECKER_OPEN: "true"
+  WOODPECKER_OPEN: "false"
   WOODPECKER_ADMIN: "${WOODPECKER_ADMIN_USER}"
 ---
 apiVersion: v1
@@ -170,7 +170,7 @@ metadata:
   namespace: infra
 rules:
   - apiGroups: [""]
-    resources: ["pods", "pods/log", "secrets", "services", "persistentvolumeclaims"]
+    resources: ["pods", "pods/log", "services", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["batch"]
     resources: ["jobs"]
@@ -194,22 +194,6 @@ kind: ServiceAccount
 metadata:
   name: woodpecker-agent
   namespace: infra
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: woodpecker-ci-admin
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: infra
-  - kind: ServiceAccount
-    name: woodpecker-agent
-    namespace: infra
 ---
 apiVersion: apps/v1
 kind: Deployment

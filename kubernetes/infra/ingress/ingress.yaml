@@ -1,14 +1,60 @@
 # =========================================================================
-# Ingress resources — L7 routing via ingress-nginx
-# Architecture:
-#   Internet → Cloudflare Edge → cloudflared → ingress-nginx (ClusterIP) → Services
-# cloudflared tunnel di Cloudflare dashboard arahkan ke:
-#   http://ingress-nginx-controller.ingress-nginx:80
+# Ingress resources — Hybrid Defense-in-Depth L7 Routing
+# Tier 1 (infra-public-ingress): Public apps / S3 media endpoint
+# Tier 2 (infra-edge-protected-ingress): Observability & AI UIs (protect with Cloudflare Zero Trust Access)
+# Tier 3 (infra-internal-ingress): Strict Tailscale-Only + HTTP Basic Auth
 # =========================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: infra-ingress
+  name: infra-public-ingress
+  namespace: infra
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: '"${INGRESS_PROXY_BODY_SIZE}"'
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "0"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${S3_HOSTNAME}
+        - ${CAP_HOSTNAME}
+      secretName: infra-public-tls
+  rules:
+    - host: ${S3_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+    - host: ${CAP_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cap-web
+                port:
+                  number: 3000
+---
+# =========================================================================
+# Tier 2: Edge-Protected UIs (Cloudflare Zero Trust Access + Native Auth)
+# =========================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: infra-edge-protected-ingress
   namespace: infra
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -25,23 +71,11 @@ spec:
   tls:
     - hosts:
         - ${GRAFANA_DOMAIN}
-        - ${CLOUDBEAVER_HOSTNAME}
-        - ${MINIO_CONSOLE_HOSTNAME}
-        - ${S3_HOSTNAME}
-        - ${EXCALIDRAW_HOSTNAME}
-        - ${EMQX_DASHBOARD_HOSTNAME}
-        - ${MAILPIT_UI_HOSTNAME}
-        - ${MONGO_UI_HOSTNAME}
-        - ${REDIS_UI_HOSTNAME}
-        - ${WOODPECKER_SERVER_HOST}
-        - ${VAULT_UI_HOSTNAME}
-        - ${QDRANT_UI_HOSTNAME}
         - ${PHOENIX_HOSTNAME}
         - ${NINEROUTER_HOSTNAME}
-        - ${MANTICORE_HOSTNAME}
-        - ${CAP_HOSTNAME}
-        - ${MEMGRAPH_LAB_HOSTNAME}
-      secretName: infra-tls
+        - ${EXCALIDRAW_HOSTNAME}
+        - ${WOODPECKER_SERVER_HOST}
+      secretName: infra-edge-tls
   rules:
     - host: ${GRAFANA_DOMAIN}
       http:
@@ -53,6 +87,89 @@ spec:
                 name: grafana
                 port:
                   number: 3000
+    - host: ${PHOENIX_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: phoenix
+                port:
+                  number: 6006
+    - host: ${NINEROUTER_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ninerouter
+                port:
+                  number: 20128
+    - host: ${EXCALIDRAW_HOSTNAME}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: excalidraw
+                port:
+                  number: 80
+    - host: ${WOODPECKER_SERVER_HOST}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: woodpecker-server
+                port:
+                  number: 8000
+---
+# =========================================================================
+# Tier 3: Strict Tailscale-Only Internal Infra UIs + HTTP Basic Auth
+# Rejects public internet / Cloudflare Tunnel requests (403 Forbidden)
+# =========================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: infra-internal-ingress
+  namespace: infra
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: '"${INGRESS_PROXY_BODY_SIZE}"'
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "0"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "${TAILSCALE_SUBNET},${K3S_POD_CIDR},${K3S_SERVICE_CIDR}"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: infra-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Tailscale Internal Infra — Authentication Required"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${CLOUDBEAVER_HOSTNAME}
+        - ${MINIO_CONSOLE_HOSTNAME}
+        - ${REDIS_UI_HOSTNAME}
+        - ${MAILPIT_UI_HOSTNAME}
+        - ${MONGO_UI_HOSTNAME}
+        - ${EMQX_DASHBOARD_HOSTNAME}
+        - ${VAULT_UI_HOSTNAME}
+        - ${QDRANT_UI_HOSTNAME}
+        - ${MANTICORE_HOSTNAME}
+        - ${MEMGRAPH_LAB_HOSTNAME}
+        - ${REDPANDA_CONSOLE_HOSTNAME}
+        - ${REGISTRY_UI_HOSTNAME}
+        - ${NATS_UI_HOSTNAME}
+      secretName: infra-internal-tls
+  rules:
     - host: ${CLOUDBEAVER_HOSTNAME}
       http:
         paths:
@@ -73,26 +190,6 @@ spec:
                 name: minio
                 port:
                   number: 9001
-    - host: ${S3_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: minio
-                port:
-                  number: 9000
-    - host: ${EXCALIDRAW_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: excalidraw
-                port:
-                  number: 80
     - host: ${REDIS_UI_HOSTNAME}
       http:
         paths:
@@ -133,16 +230,6 @@ spec:
                 name: emqx
                 port:
                   number: 18083
-    - host: ${WOODPECKER_SERVER_HOST}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: woodpecker-server
-                port:
-                  number: 8000
     - host: ${VAULT_UI_HOSTNAME}
       http:
         paths:
@@ -163,26 +250,6 @@ spec:
                 name: qdrant
                 port:
                   number: 6333
-    - host: ${PHOENIX_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: phoenix
-                port:
-                  number: 6006
-    - host: ${NINEROUTER_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: ninerouter
-                port:
-                  number: 20128
     - host: ${MANTICORE_HOSTNAME}
       http:
         paths:
@@ -193,16 +260,6 @@ spec:
                 name: manticore
                 port:
                   number: 9308
-    - host: ${CAP_HOSTNAME}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: cap-web
-                port:
-                  number: 3000
     - host: ${MEMGRAPH_LAB_HOSTNAME}
       http:
         paths:
@@ -213,39 +270,6 @@ spec:
                 name: memgraph-lab
                 port:
                   number: 3000
----
-# =========================================================================
-# Ingress with HTTP Basic Auth protection
-# Protects platforms without native user auth:
-# Redpanda Console, Docker Registry UI, NATS Monitoring
-# =========================================================================
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: infra-auth-ingress
-  namespace: infra
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: '"${INGRESS_PROXY_BODY_SIZE}"'
-    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-buffering: "off"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: "0"
-    nginx.ingress.kubernetes.io/auth-type: basic
-    nginx.ingress.kubernetes.io/auth-secret: infra-basic-auth
-    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - ${REDPANDA_CONSOLE_HOSTNAME}
-        - ${REGISTRY_UI_HOSTNAME}
-        - ${NATS_UI_HOSTNAME}
-      secretName: infra-auth-tls
-  rules:
     - host: ${REDPANDA_CONSOLE_HOSTNAME}
       http:
         paths:
@@ -276,5 +300,3 @@ spec:
                 name: nats-headless
                 port:
                   number: 8222
-
-

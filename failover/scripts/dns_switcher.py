@@ -50,9 +50,9 @@ load_dotenv()
 
 API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
 GLOBAL_KEY = os.environ.get("CLOUDFLARE_API_KEY", "").strip()
-CF_EMAIL = os.environ.get("CLOUDFLARE_EMAIL", "faisallionel@gmail.com").strip()
+CF_EMAIL = os.environ.get("CLOUDFLARE_EMAIL", "").strip()
 ZONE_ID = os.environ.get("CLOUDFLARE_ZONE_ID", "").strip()
-FAILOVER_DOMAIN = os.environ.get("FAILOVER_DOMAIN", "homelab.faisalaffan.com").strip()
+FAILOVER_DOMAIN = os.environ.get("FAILOVER_DOMAIN", "homelab.example.com").strip()
 MASTER_RECORD = os.environ.get("CLOUDFLARE_MASTER_ORIGIN_RECORD", f"origin.{FAILOVER_DOMAIN}").strip()
 
 HOMELAB_UUID = os.environ.get("CLOUDFLARE_HOMELAB_TUNNEL_UUID", "").strip()
