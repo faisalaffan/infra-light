@@ -40,7 +40,9 @@ RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
         > /etc/apt/sources.list.d/pgdg.list
 
 # ── 3. Add TimescaleDB repository ────────────────────────────────────────────
-RUN echo "deb [trusted=yes] https://packagecloud.io/timescale/timescaledb/debian/ bookworm main" \
+RUN curl -fsSL https://packagecloud.io/timescale/timescaledb/gpgkey \
+    | gpg --dearmor -o /usr/share/keyrings/timescaledb.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/timescaledb.gpg] https://packagecloud.io/timescale/timescaledb/debian/ bookworm main" \
         > /etc/apt/sources.list.d/timescaledb.list
 
 # ── 4. Install ALL build deps + extensions in ONE layer ───────────────────────
